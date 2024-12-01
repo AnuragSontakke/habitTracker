@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Streaks",
-    "slug": "Streaks",
+    "name": "Habit Tracker",
+    "slug": "HabitTracker",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -15,7 +15,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.sontakke009.HabitTracker"
     },
     "web": {
       "bundler": "metro",
@@ -36,6 +37,20 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "c16fddd6-388a-4e74-8651-3dabcc37ef0e"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c16fddd6-388a-4e74-8651-3dabcc37ef0e"
     }
   }
 }
