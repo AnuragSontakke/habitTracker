@@ -49,7 +49,7 @@ export default function BusinessList() {
             fontFamily: "outfit-bold",
           }}
         >
-          Popular Items
+          Popular Business
         </Text>
       </View>
       <FlatList

@@ -8,13 +8,13 @@ import {
   ActivityIndicator, 
   ScrollView, 
   KeyboardAvoidingView, 
+  FlatList, 
   Platform 
 } from "react-native";
 import React, { useEffect, useState } from "react";
 import { useNavigation } from "expo-router";
 import { Colors } from "../../constants/Colors";
 import * as ImagePicker from "expo-image-picker";
-import RNPickerSelect from "react-native-picker-select";
 import { collection, doc, getDocs, query, setDoc } from "firebase/firestore";
 import { db, storage } from "../../configs/FirebaseConfig";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
@@ -30,6 +30,7 @@ export default function AddBusiness() {
   const [website, setWebsite] = useState("");
   const [about, setAbout] = useState("");
   const [category, setCategory] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
   const { user } = useUser();
   const [loading, setLoading] = useState(false);
 
@@ -37,9 +38,8 @@ export default function AddBusiness() {
     navigation.setOptions({
       headerTitle: "Add New Business",
       headerShown: true,
-      headerStyle:{
+      headerStyle: {
         backgroundColor: Colors.PRIMARY,
-     
       },
       headerTitleStyle: {
         color: '#fff',
@@ -160,7 +160,7 @@ export default function AddBusiness() {
 
   const saveBusinessDetail = async (imageUrl) => {
     try {
-      await setDoc(doc(db, "businessList", Date.now().toString()), { // Use Date.now() to generate a unique document ID
+      await setDoc(doc(db, "businessList", Date.now().toString()), {
         name: name.trim(),
         address: address.trim(),
         contact,
@@ -253,36 +253,67 @@ export default function AddBusiness() {
           />
         </View>
 
-        <View style={[inputStyle, { borderRadius: 5, marginTop: 10 }]}>
-          <RNPickerSelect
-            onValueChange={setCategory}
-            items={categoryList}
-            placeholder={{ label: "Select a category", value: null }}
-          />
+        {/* Custom Dropdown */}
+        <View>
+          <TouchableOpacity
+            onPress={() => setShowDropdown(!showDropdown)}
+            style={[inputStyle, { flexDirection: "row", justifyContent: "space-between" }]}
+          >
+            <Text style={{ fontSize: 16 }}>
+              {category || "Select a category"}
+            </Text>
+            <Text style={{ fontSize: 16 }}>▼</Text>
+          </TouchableOpacity>
+
+          {showDropdown && (
+            <View
+              style={{
+                borderWidth: 1,
+                borderColor: Colors.PRIMARY,
+                borderRadius: 5,
+                backgroundColor: "#fff",
+                marginTop: 5,
+                maxHeight: 150, // Limit the height of the dropdown
+              }}
+            >
+              <FlatList
+                data={categoryList}
+                keyExtractor={(item) => item.value}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setCategory(item.value);
+                      setShowDropdown(false);
+                    }}
+                    style={{
+                      padding: 10,
+                      borderBottomWidth: 1,
+                      borderBottomColor: "#ddd",
+                    }}
+                  >
+                    <Text style={{ fontSize: 16 }}>{item.label}</Text>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          )}
         </View>
 
         <TouchableOpacity
-          disabled={loading}
           style={{
+            backgroundColor: Colors.PRIMARY,
             padding: 15,
-            backgroundColor: loading ? Colors.GRAY : Colors.PRIMARY,
-            borderRadius: 5,
+            borderRadius: 10,
+            alignItems: "center",
             marginTop: 20,
           }}
           onPress={onAddNewBusiness}
+          disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator size="large" color="#fff" />
+            <ActivityIndicator color="#fff" />
           ) : (
-            <Text
-              style={{
-                textAlign: "center",
-                fontFamily: "outfit-medium",
-                color: "#fff",
-              }}
-            >
-              Add New Business
-            </Text>
+            <Text style={{ color: "#fff", fontSize: 18 }}>Submit</Text>
           )}
         </TouchableOpacity>
       </ScrollView>
