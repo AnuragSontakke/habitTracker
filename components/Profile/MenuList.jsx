@@ -97,6 +97,25 @@ export default function MenuList() {
         },
         {
             id: 4,
+            name: "Join Network",
+            icon: (
+                <Ionicons
+                    name="share-social"
+                    size={30}
+                    color="white"
+                    backgroundColor={"#83e684"}
+                    style={{
+                        width: 50,
+                        height: 50,
+                        padding: 10,
+                        borderRadius: 99,
+                    }}
+                />
+            ),
+            path: "/network/join-network",
+        },
+        {
+            id: 5,
             name: "Logout",
             icon: (
                 <MaterialIcons
