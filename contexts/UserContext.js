@@ -10,12 +10,16 @@ const UserContext = createContext();
 export const UserProvider = ({ children }) => {
   const [userRole, setUserRole] = useState(null); // Stores user role
   const [userId, setUserId] = useState(null); // Stores user ID
+  const [userEmail, setUserEmail] = useState(null); // Stores user email
+  const [userName, setUserName] = useState(null); // Stores user Name
   const [loading, setLoading] = useState(true);  // Loading state
   const { user } = useUser(); // Get the current user from Clerk
 
   useEffect(() => {
     if (user) {
       setUserId(user.id); // Save user id from Clerk
+      setUserEmail(user.primaryEmailAddress?.emailAddress); // Save user email from Clerk
+      setUserName(user.fullName); // Save user Name from Clerk
       fetchUserRole(user.id); // Fetch role from Firebase
     }
   }, [user]);
@@ -38,7 +42,7 @@ export const UserProvider = ({ children }) => {
   };
 
   return (
-    <UserContext.Provider value={{ userRole, loading, userId }}>
+    <UserContext.Provider value={{ userRole, loading, userId, userEmail, userName }}>
       {children}
     </UserContext.Provider>
   );

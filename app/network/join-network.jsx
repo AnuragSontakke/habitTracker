@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TextInput,
+  Button,
   Alert,
   FlatList,
 } from "react-native";
@@ -23,11 +24,11 @@ import { db } from "../../configs/FirebaseConfig";
 import { useUserContext } from "../../contexts/UserContext";
 import { useNavigation } from "expo-router";
 import { Colors } from "../../constants/Colors";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function JoinNetwork() {
   const navigation = useNavigation();
-  const { userRole, userId } = useUserContext();
+  const { userRole, userId, userName, userEmail } = useUserContext(); // Fetch user role and ID from context
   const [teacherCode, setTeacherCode] = useState("");
   const [requests, setRequests] = useState([]);
 
@@ -49,6 +50,7 @@ export default function JoinNetwork() {
     }
   }, [userRole]);
 
+  /** Handle join network logic */
   const handleJoinNetwork = async () => {
     try {
       if (userRole !== "member" && userRole !== "volunteer") {
@@ -57,7 +59,11 @@ export default function JoinNetwork() {
       }
 
       const usersRef = collection(db, "users");
-      const userQuery = query(usersRef, where("uniqueTeacherCode", "==", teacherCode), limit(1));
+      const userQuery = query(
+        usersRef,
+        where("uniqueTeacherCode", "==", teacherCode),
+        limit(1)
+      );
       const userQuerySnapshot = await getDocs(userQuery);
 
       if (userQuerySnapshot.empty) {
@@ -76,7 +82,11 @@ export default function JoinNetwork() {
       }
 
       await updateDoc(teacherNetworkRef, {
-        requests: arrayUnion(userId),
+        requests: arrayUnion({
+          userId,
+          email: userEmail || "",
+          name: userName || "",
+        }),
       });
 
       Alert.alert("Request sent successfully.");
@@ -87,6 +97,7 @@ export default function JoinNetwork() {
     }
   };
 
+  /** Fetch pending requests for teacher */
   const fetchTeacherRequests = async () => {
     try {
       const teacherDocRef = doc(db, "teacherNetworks", userId);
@@ -102,11 +113,26 @@ export default function JoinNetwork() {
     }
   };
 
+  /** Approve request & add user to members array */
   const approveRequest = async (requestId) => {
     try {
+      const userSnapshot = await getDoc(doc(db, "users", requestId));
+
+      if (!userSnapshot.exists()) {
+        Alert.alert("User data not found.");
+        return;
+      }
+
+      const userData = userSnapshot.data();
+      const newMember = {
+        userId: requestId,
+        email: userData?.email || "",
+        name: userData?.fullName || "",
+      };
+
       const teacherDocRef = doc(db, "teacherNetworks", userId);
       await updateDoc(teacherDocRef, {
-        members: arrayUnion(requestId),
+        members: arrayUnion(newMember),
         requests: arrayRemove(requestId),
       });
 
@@ -118,6 +144,7 @@ export default function JoinNetwork() {
     }
   };
 
+  /** Reject user request */
   const rejectRequest = async (requestId) => {
     try {
       const teacherDocRef = doc(db, "teacherNetworks", userId);
@@ -133,23 +160,26 @@ export default function JoinNetwork() {
     }
   };
 
+  /** Render teacher pending requests */
   const renderRequestCard = ({ item }) => {
     return (
       <View style={styles.requestCard}>
-        <Text style={styles.requestText}>User ID: {item}</Text>
+        <Text style={styles.requestText}>
+          Name: {item?.name || "Unknown"} | Email: {item?.email || "Unknown"}
+        </Text>
         <View style={styles.iconContainer}>
           <Ionicons
             name="checkmark-circle-outline"
             size={24}
             color="green"
-            onPress={() => approveRequest(item)}
+            onPress={() => approveRequest(item?.userId)}
             style={styles.icon}
           />
           <Ionicons
             name="remove-circle-outline"
             size={24}
             color="red"
-            onPress={() => rejectRequest(item)}
+            onPress={() => rejectRequest(item?.userId)}
             style={styles.icon}
           />
         </View>
@@ -157,6 +187,7 @@ export default function JoinNetwork() {
     );
   };
 
+  /** Render UI based on roles */
   if (userRole === "teacher") {
     return (
       <View style={styles.container}>
@@ -166,10 +197,29 @@ export default function JoinNetwork() {
         ) : (
           <FlatList
             data={requests}
-            keyExtractor={(item) => item}
+            keyExtractor={(item) => item.userId}
             renderItem={renderRequestCard}
           />
         )}
+      </View>
+    );
+  }
+
+  if (userRole === "member" || userRole === "volunteer") {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Enter Teacher Unique Code to Join Network</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter teacher unique code"
+          value={teacherCode}
+          onChangeText={setTeacherCode}
+        />
+        <Button
+          title="Join Network"
+          onPress={handleJoinNetwork}
+          disabled={!teacherCode}
+        />
       </View>
     );
   }
@@ -204,11 +254,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
     borderColor: "lightgray",
-    justifyContent: "space-between",
   },
   requestText: {
     fontSize: 16,
-    marginBottom: 10,
   },
   iconContainer: {
     flexDirection: "row",
@@ -217,5 +265,11 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginHorizontal: 10,
+  },
+  input: {
+    borderWidth: 1,
+    padding: 8,
+    marginBottom: 10,
+    borderRadius: 4,
   },
 });

@@ -8,13 +8,13 @@ import Slider from "../../components/Home/Slider";
 import Category from "../../components/Home/Category";
 import BusinessList from "../../components/Home/BusinessList";
 
-// Helper function to generate a unique teacher code
+// Synchronous helper function to generate unique teacher codes
 const generateUniqueTeacherCode = () => {
   return Math.random().toString(36).substring(2, 8);
 };
 
 // Function to handle TeacherNetwork creation logic
-const syncTeacherNetwork = async (user) => {
+const syncTeacherNetwork = async (user, uniqueCode) => {
   const teacherNetworkRef = doc(db, "teacherNetworks", user.id);
 
   try {
@@ -24,7 +24,6 @@ const syncTeacherNetwork = async (user) => {
       console.log("Teacher network already exists.");
     } else {
       console.log("Creating teacher network...");
-      const uniqueCode = generateUniqueTeacherCode();
       await setDoc(teacherNetworkRef, {
         members: [],
         createdAt: new Date(),
@@ -43,7 +42,8 @@ const syncUserToFirebase = async (user) => {
   try {
     const userRef = doc(db, "users", user.id);
 
-    // Attach user role & email info to users collection
+    const userSnapshot = await getDoc(userRef);
+
     const userData = {
       email: user.emailAddresses[0]?.emailAddress || '',
       fullName: user.fullName || '',
@@ -51,12 +51,17 @@ const syncUserToFirebase = async (user) => {
       role: user.publicMetadata?.role || "member",
     };
 
-    // If the user is a teacher, generate & sync uniqueTeacherCode
+    // Handle logic for teacher's uniqueTeacherCode only if necessary
     if (user.publicMetadata?.role === "teacher") {
-      const uniqueTeacherCode = generateUniqueTeacherCode();
-      userData.uniqueTeacherCode = uniqueTeacherCode; // Attach code to the user data payload
-      await syncTeacherNetwork(user);
-      console.log("Generated teacher code for new teacher:", uniqueTeacherCode);
+      if (!userSnapshot.exists() || !userSnapshot.data()?.uniqueTeacherCode) {
+        const uniqueTeacherCode = generateUniqueTeacherCode();
+        userData.uniqueTeacherCode = uniqueTeacherCode;
+        await syncTeacherNetwork(user, uniqueTeacherCode);
+        console.log("Generated teacher code for new teacher:", uniqueTeacherCode);
+      } else {
+        userData.uniqueTeacherCode = userSnapshot.data()?.uniqueTeacherCode;
+        console.log("Existing teacher code found:", userData.uniqueTeacherCode);
+      }
     }
 
     // Write the user data to the Firestore database
