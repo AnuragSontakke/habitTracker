@@ -4,6 +4,7 @@ import { useFonts } from "expo-font";
 import { ActivityIndicator, View } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import Login from "./login";
+import { UserProvider } from "../contexts/UserContext"; // Import the UserProvider
 
 const tokenCache = {
   async getToken(key) {
@@ -39,7 +40,6 @@ export default function RootLayout() {
   });
 
   if (!fontsLoaded) {
-    // Show a loading indicator while fonts are loading
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#0000ff" />
@@ -55,7 +55,8 @@ export default function RootLayout() {
 
   return (
     <ClerkProvider tokenCache={tokenCache} publishableKey={publishableKey}>
-      <SignedIn>
+      <UserProvider>
+        <SignedIn>
           <Stack
             screenOptions={{
               headerShown: false,
@@ -63,10 +64,11 @@ export default function RootLayout() {
           >
             <Stack.Screen name="(tabs)" />
           </Stack>
-      </SignedIn>
-      <SignedOut>
-       <Login />
-      </SignedOut>
+        </SignedIn>
+        <SignedOut>
+          <Login />
+        </SignedOut>
+      </UserProvider>
     </ClerkProvider>
   );
 }

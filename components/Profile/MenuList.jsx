@@ -8,7 +8,12 @@ import { useAuth } from "@clerk/clerk-expo";
 
 export default function MenuList() {
     const router = useRouter();
-    const { signOut } = useAuth();
+    const { signOut, user } = useAuth();
+
+    // Check if user has a specific role
+    const userHasRole = (role) => {
+        return user?.publicMetadata?.roles?.includes(role);
+    };
 
     // Menu List Data
     const menuList = [
@@ -30,6 +35,7 @@ export default function MenuList() {
                 />
             ),
             path: "/business/add-business",
+            role: "admin",
         },
         {
             id: 2,
@@ -49,6 +55,7 @@ export default function MenuList() {
                 />
             ),
             path: "/business/my-business",
+            role: "admin",
         },
         {
             id: 3,
@@ -68,6 +75,25 @@ export default function MenuList() {
                 />
             ),
             path: "share",
+        },
+        {
+            id: 3,
+            name: "Members",
+            icon: (
+                <Ionicons
+                    name="share-social"
+                    size={30}
+                    color="white"
+                    backgroundColor={"#83e684"}
+                    style={{
+                        width: 50,
+                        height: 50,
+                        padding: 10,
+                        borderRadius: 99,
+                    }}
+                />
+            ),
+            path: "/members/manage-members",
         },
         {
             id: 4,
@@ -116,10 +142,15 @@ export default function MenuList() {
         router.push(item.path);
     };
 
+    // Filter menu items based on user role
+    const filteredMenuList = menuList.filter(
+        (item) => !item.role || userHasRole(item.role)
+    );
+
     return (
         <View style={{ marginTop: 20 }}>
             <FlatList
-                data={menuList}
+                data={filteredMenuList}
                 numColumns={2}
                 renderItem={({ item }) => (
                     <TouchableOpacity

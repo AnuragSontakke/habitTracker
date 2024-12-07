@@ -23,9 +23,17 @@ export const Colors = {
     tabIconDefault: '#9BA1A6',
     tabIconSelected: tintColorDark,
   },
-  PRIMARY : '#8B8BFC',
+  PRIMARY: '#8B8BFC',
   PRIMARY_LIGHT: '#bda9f5',
-  GRAY : '#8f8f8f'
-
-
+  GRAY: '#8f8f8f',
+  
+  // Role Colors
+  ADMIN: '#FF5252',         // Red
+  TEACHER: '#FFA500',       // Orange
+  VOLUNTEER: '#1E90FF',     // Blue
+  MEMBER: '#32CD32',        // Green
+  
+  // Status Colors
+  SUCCESS: '#4CAF50',       // Green for success actions
+  DANGER: '#FF5252',        // Red for danger actions
 };
