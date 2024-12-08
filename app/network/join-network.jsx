@@ -49,7 +49,7 @@ export default function JoinNetwork() {
       fetchTeacherRequests();
     }
   }, [userRole]);
-
+console.log("userRole",userRole)
   /** Handle join network logic */
   const handleJoinNetwork = async () => {
     try {
@@ -83,9 +83,9 @@ export default function JoinNetwork() {
 
       await updateDoc(teacherNetworkRef, {
         requests: arrayUnion({
-          userId,
           email: userEmail || "",
           name: userName || "",
+          userId,          
         }),
       });
 
@@ -106,6 +106,9 @@ export default function JoinNetwork() {
       if (teacherDocSnapshot?.exists()) {
         const pendingRequests = teacherDocSnapshot?.data()?.requests || [];
         setRequests(pendingRequests);
+      }else {
+        console.log("No network data found");
+        setRequests([]); // Clear out the requests if none exist
       }
     } catch (error) {
       console.error("Error fetching teacher requests", error);
@@ -125,15 +128,15 @@ export default function JoinNetwork() {
 
       const userData = userSnapshot.data();
       const newMember = {
-        userId: requestId,
         email: userData?.email || "",
         name: userData?.fullName || "",
+        userId: requestId,        
       };
 
       const teacherDocRef = doc(db, "teacherNetworks", userId);
       await updateDoc(teacherDocRef, {
         members: arrayUnion(newMember),
-        requests: arrayRemove(requestId),
+        requests: arrayRemove(newMember),
       });
 
       Alert.alert("User approved successfully.");
@@ -147,11 +150,31 @@ export default function JoinNetwork() {
   /** Reject user request */
   const rejectRequest = async (requestId) => {
     try {
+      // Fetch the user's data to construct the object
+      const userSnapshot = await getDoc(doc(db, "users", requestId));
+  
+      if (!userSnapshot.exists()) {
+        Alert.alert("User data not found.");
+        return;
+      }
+  
+      const userData = userSnapshot.data();
+      const requestToRemove = {
+        email: userData?.email || "",
+        name: userData?.fullName || "",
+        userId: requestId,
+      };
+  
+      console.log("Request to remove:", requestToRemove);
+  
+      // Reference the teacher's network document
       const teacherDocRef = doc(db, "teacherNetworks", userId);
+  
+      // Remove the request object
       await updateDoc(teacherDocRef, {
-        requests: arrayRemove(requestId),
+        requests: arrayRemove(requestToRemove),
       });
-
+  
       Alert.alert("User rejected successfully.");
       fetchTeacherRequests();
     } catch (error) {

@@ -32,6 +32,7 @@ export const UserProvider = ({ children }) => {
       if (userDoc.exists()) {
         setUserRole(userDoc.data().role); // Set the role
       } else {
+        setUserRole("member");
         console.error("User not found in Firebase.");
       }
     } catch (error) {
