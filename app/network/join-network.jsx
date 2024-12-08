@@ -34,7 +34,7 @@ export default function JoinNetwork() {
 
   useEffect(() => {
     navigation.setOptions({
-      headerTitle: "Join Network",
+      headerTitle: userRole === "teacher" ? "Requests" : "Join Network",
       headerShown: true,
       headerStyle: {
         backgroundColor: Colors.PRIMARY,
@@ -117,35 +117,62 @@ console.log("userRole",userRole)
   };
 
   /** Approve request & add user to members array */
-  const approveRequest = async (requestId) => {
-    try {
-      const userSnapshot = await getDoc(doc(db, "users", requestId));
 
-      if (!userSnapshot.exists()) {
-        Alert.alert("User data not found.");
-        return;
-      }
+const approveRequest = async (requestId) => {
+  try {
+    // Fetch the user's data
+    const userSnapshot = await getDoc(doc(db, "users", requestId));
+    if (!userSnapshot.exists()) {
+      Alert.alert("User data not found.");
+      return;
+    }
 
-      const userData = userSnapshot.data();
-      const newMember = {
+    const userData = userSnapshot.data();
+    const newMember = {
+      email: userData?.email || "",
+      name: userData?.fullName || "",
+      userId: requestId,
+    };
+
+    // Fetch teacher's data
+    const teacherSnapshot = await getDoc(doc(db, "users", userId)); // `userId` is the teacher's ID
+    if (!teacherSnapshot.exists()) {
+      Alert.alert("Teacher data not found.");
+      return;
+    }
+
+    const teacherData = teacherSnapshot.data();
+    const teacherObject = {
+      teacherId: userId,
+      teacherName: teacherData?.fullName || "",
+      teacherEmail: teacherData?.email || "",
+    };
+
+    // Update teacher's network (add member and remove request)
+    const teacherDocRef = doc(db, "teacherNetworks", userId);
+    await updateDoc(teacherDocRef, {
+      members: arrayUnion(newMember),
+      requests: arrayRemove({
         email: userData?.email || "",
         name: userData?.fullName || "",
-        userId: requestId,        
-      };
+        userId: requestId,
+      }),
+    });
 
-      const teacherDocRef = doc(db, "teacherNetworks", userId);
-      await updateDoc(teacherDocRef, {
-        members: arrayUnion(newMember),
-        requests: arrayRemove(newMember),
-      });
+    // Add the teacher object to the user's document
+    const userDocRef = doc(db, "users", requestId);
+    await updateDoc(userDocRef, {
+      teacher: teacherObject, // Add the teacher details
+    });
 
-      Alert.alert("User approved successfully.");
-      fetchTeacherRequests();
-    } catch (error) {
-      console.error("Error approving request", error);
-      Alert.alert("Failed to approve request.");
-    }
-  };
+    Alert.alert("User approved successfully.");
+    fetchTeacherRequests();
+  } catch (error) {
+    console.error("Error approving request", error);
+    Alert.alert("Failed to approve request.");
+  }
+};
+
 
   /** Reject user request */
   const rejectRequest = async (requestId) => {

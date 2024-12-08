@@ -65,7 +65,9 @@ const syncUserToFirebase = async (user) => {
     }
 
     // Write the user data to the Firestore database
-    await setDoc(userRef, userData);
+    await setDoc(userRef, userData, {
+      merge: true
+    });
 
     console.log("User synced to 'users' collection.");
   } catch (error) {
