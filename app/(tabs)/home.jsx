@@ -1,13 +1,24 @@
 import React, { useState, useEffect } from "react";
-import { View, ScrollView, StyleSheet, ActivityIndicator, RefreshControl } from "react-native";
-import { useUser } from "@clerk/clerk-expo";
-import { doc, setDoc, getDoc, collection, query, where } from "firebase/firestore";
+import {
+  View,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+  RefreshControl,
+} from "react-native";
+import { useAuth, useUser } from "@clerk/clerk-expo";
+import {
+  doc,
+  setDoc,
+  getDoc,
+} from "firebase/firestore";
 import { db } from "../../configs/FirebaseConfig";
 import Header from "../../components/Home/Header";
 import Slider from "../../components/Home/Slider";
 import Category from "../../components/Home/Category";
 import BusinessList from "../../components/Home/BusinessList";
 import NewTaskCard from "../../components/Home/NewTaskCard";
+import { updateRole } from "../../services/updateRole";
 
 // Synchronous helper function to generate unique teacher codes
 const generateUniqueTeacherCode = () => {
@@ -20,18 +31,14 @@ const syncTeacherNetwork = async (user, uniqueCode) => {
 
   try {
     const teacherNetworkDoc = await getDoc(teacherNetworkRef);
-
     if (teacherNetworkDoc.exists()) {
-      console.log("Teacher network already exists.");
     } else {
-      console.log("Creating teacher network...");
       await setDoc(teacherNetworkRef, {
         members: [],
         createdAt: new Date(),
         uniqueTeacherCode: uniqueCode,
         requests: [],
       });
-      console.log("Teacher network created with uniqueTeacherCode:", uniqueCode);
     }
   } catch (error) {
     console.error("Error handling teacher network", error);
@@ -39,38 +46,36 @@ const syncTeacherNetwork = async (user, uniqueCode) => {
 };
 
 // Function to sync user data into Firestore
-const syncUserToFirebase = async (user) => {
+const syncUserToFirebase = async (user, token) => {
   try {
     const userRef = doc(db, "users", user.id);
-
     const userSnapshot = await getDoc(userRef);
 
     const userData = {
-      email: user.emailAddresses[0]?.emailAddress || '',
-      fullName: user.fullName || '',
+      email: user.emailAddresses[0]?.emailAddress || "",
+      fullName: user.fullName || "",
       clerkId: user.id,
       role: user.publicMetadata?.role || "member",
     };
+
+    if (!user.publicMetadata?.role) {
+      await updateRole(user.id, token, "member");
+    }
 
     // Handle logic for teacher's uniqueTeacherCode only if necessary
     if (user.publicMetadata?.role === "teacher") {
       if (!userSnapshot.exists() || !userSnapshot.data()?.uniqueTeacherCode) {
         const uniqueTeacherCode = generateUniqueTeacherCode();
         userData.uniqueTeacherCode = uniqueTeacherCode;
-        await syncTeacherNetwork(user, uniqueTeacherCode);
-        console.log("Generated teacher code for new teacher:", uniqueTeacherCode);
+        await syncTeacherNetwork(user, uniqueTeacherCode);  
       } else {
         userData.uniqueTeacherCode = userSnapshot.data()?.uniqueTeacherCode;
-        console.log("Existing teacher code found:", userData.uniqueTeacherCode);
       }
     }
-
     // Write the user data to the Firestore database
     await setDoc(userRef, userData, {
-      merge: true
+      merge: true,
     });
-
-    console.log("User synced to 'users' collection.");
   } catch (error) {
     console.error("Error syncing user to Firebase", error);
   }
@@ -80,6 +85,7 @@ export default function Home() {
   const { user, isLoaded } = useUser();
   const [isLoading, setIsLoading] = useState(false);
   const [role, setRole] = useState(null);
+  const { getToken } = useAuth();
 
   useEffect(() => {
     handleRefresh();
@@ -90,7 +96,13 @@ export default function Home() {
 
     try {
       if (user && isLoaded) {
-        await syncUserToFirebase(user);
+        const token = await getToken();
+
+        if (!token) {
+          throw new Error("Something went wrong");
+        }
+
+        await syncUserToFirebase(user, token);
         const userRole = user.publicMetadata?.role || "member";
         setRole(userRole);
       }
@@ -111,10 +123,7 @@ export default function Home() {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={false}
-            onRefresh={handleRefresh}
-          />
+          <RefreshControl refreshing={false} onRefresh={handleRefresh} />
         }
       >
         <Slider />

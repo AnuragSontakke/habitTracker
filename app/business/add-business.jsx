@@ -149,9 +149,7 @@ export default function AddBusiness() {
       const downloadUrl = await getDownloadURL(imageRef);
       await saveBusinessDetail(downloadUrl);
       resetForm();
-      console.log("File uploaded successfully");
     } catch (error) {
-      console.error("File upload failed:", error);
       ToastAndroid.show("File upload failed", ToastAndroid.LONG);
     } finally {
       setLoading(false);

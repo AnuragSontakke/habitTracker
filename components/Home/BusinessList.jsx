@@ -18,7 +18,6 @@ export default function BusinessList() {
           setLoading(true); // Set loading state to true
           const q = query(collection(db, "businessList"));
           const querySnapshot = await getDocs(q);
-            console.log("querySnapshot",querySnapshot)
           const categories = [];
           querySnapshot.forEach((doc) => {
             categories.push({id: doc.id, ...doc.data()}); // Collect data in a local array

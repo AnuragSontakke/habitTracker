@@ -21,7 +21,6 @@ export default function Category() {
       setLoading(true); // Set loading state to true
       const q = query(collection(db, "category"));
       const querySnapshot = await getDocs(q);
-        console.log("querySnapshot",querySnapshot)
       const categories = [];
       querySnapshot.forEach((doc) => {
         categories.push(doc.data()); // Collect data in a local array

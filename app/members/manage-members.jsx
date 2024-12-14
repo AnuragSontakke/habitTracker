@@ -9,7 +9,7 @@ import {
   TextInput 
 } from "react-native";
 import React, { useEffect, useState } from "react";
-import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, getDoc } from "firebase/firestore";
 import { db } from "../../configs/FirebaseConfig";
 import { useNavigation } from "expo-router";
 import { Colors } from "../../constants/Colors";
@@ -46,23 +46,56 @@ export default function ManageMembers() {
   // Fetch all users excluding logged-in user and admins
   async function getAllUsers() {
     try {
-      const userRef = collection(db, "users");
-      const snapshot = await getDocs(userRef);
-      const usersList = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-
-      // Exclude logged-in user and users with role 'admin'
-      const filteredList = usersList.filter(
-        (user) => user.id !== userId && user.role !== "admin"
-      );
-
-      setMemberList(filteredList);
+      if (userRole === "admin") {
+        // Admin: Fetch all users, excluding themselves and other admins
+        const userRef = collection(db, "users");
+        const snapshot = await getDocs(userRef);
+        const usersList = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+  
+        // Exclude logged-in admin and other admin users
+        const filteredList = usersList.filter(
+          (user) => user.id !== userId && user.role !== "admin"
+        );
+  
+        setMemberList(filteredList);
+      } else if (userRole === "teacher") {
+        // Teacher: Fetch only users in their network
+        const teacherRef = doc(db, "teacherNetworks", userId); // userId is the teacherId here
+        const teacherSnapshot = await getDoc(teacherRef);
+  
+        if (teacherSnapshot.exists()) {
+          // Fetch the 'members' array from the teacher's document
+          const teacherNetworkMembers = teacherSnapshot.data()?.members || [];
+  
+          // Extract the `userId` of each member in the teacher's network
+          const memberIds = teacherNetworkMembers.map((member) => member.userId);
+  
+          // Fetch all users from the `users` collection
+          const userRef = collection(db, "users");
+          const snapshot = await getDocs(userRef);
+          const usersList = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }));
+  
+          // Filter users who are in the teacher's members list
+          const filteredList = usersList.filter((user) => memberIds.includes(user.id));
+  
+          setMemberList(filteredList);
+        } else {
+          setMemberList([]);
+        }
+      } else {
+        console.error("This function is only applicable for admin and teacher roles.");
+      }
     } catch (error) {
       console.error("Error fetching users:", error);
     }
   }
+  
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -99,10 +132,8 @@ export default function ManageMembers() {
      throw new Error("Something went wrong");
    }
 
-   console.log("Retrieved token:", token);
       const userRef = doc(db, "users", clerkId);
       await updateDoc(userRef, { role: newRole });
-      console.log("token kaise",token)
       await updateRole(clerkId, token, newRole);
       alert("Role updated successfully");
       getAllUsers();
@@ -114,7 +145,6 @@ export default function ManageMembers() {
   const renderItem = ({ item }) => {
     let actionButtonLabel = "";
     let actionButtonStyle = null;
-console.log("dsdss", userRole)
     if (userRole === "admin" || userRole === "teacher") {
       if (item.role === "member") {
         actionButtonLabel = "Give Volunteer Access";

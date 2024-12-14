@@ -49,7 +49,6 @@ export default function JoinNetwork() {
       fetchTeacherRequests();
     }
   }, [userRole]);
-console.log("userRole",userRole)
   /** Handle join network logic */
   const handleJoinNetwork = async () => {
     try {
@@ -107,11 +106,9 @@ console.log("userRole",userRole)
         const pendingRequests = teacherDocSnapshot?.data()?.requests || [];
         setRequests(pendingRequests);
       }else {
-        console.log("No network data found");
         setRequests([]); // Clear out the requests if none exist
       }
     } catch (error) {
-      console.error("Error fetching teacher requests", error);
       Alert.alert("Failed to fetch teacher requests.");
     }
   };
@@ -130,7 +127,8 @@ const approveRequest = async (requestId) => {
     const userData = userSnapshot.data();
     const newMember = {
       email: userData?.email || "",
-      name: userData?.fullName || "",
+      fullName: userData?.fullName || "",
+      role: userData?.role || "member",
       userId: requestId,
     };
 
@@ -154,7 +152,8 @@ const approveRequest = async (requestId) => {
       members: arrayUnion(newMember),
       requests: arrayRemove({
         email: userData?.email || "",
-        name: userData?.fullName || "",
+        fullName: userData?.fullName || "",
+        role: userData?.role || "member",
         userId: requestId,
       }),
     });
@@ -190,9 +189,7 @@ const approveRequest = async (requestId) => {
         email: userData?.email || "",
         name: userData?.fullName || "",
         userId: requestId,
-      };
-  
-      console.log("Request to remove:", requestToRemove);
+      }; 
   
       // Reference the teacher's network document
       const teacherDocRef = doc(db, "teacherNetworks", userId);
@@ -214,20 +211,21 @@ const approveRequest = async (requestId) => {
   const renderRequestCard = ({ item }) => {
     return (
       <View style={styles.requestCard}>
-        <Text style={styles.requestText}>
-          Name: {item?.name || "Unknown"} | Email: {item?.email || "Unknown"}
-        </Text>
+        <View style={styles.textContainer}>
+          <Text style={styles.nameText}>{item?.name || "Unknown"}</Text>
+          <Text style={styles.emailText}>{item?.email || "Unknown"}</Text>
+        </View>
         <View style={styles.iconContainer}>
           <Ionicons
             name="checkmark-circle-outline"
-            size={24}
+            size={40}
             color="green"
             onPress={() => approveRequest(item?.userId)}
             style={styles.icon}
           />
           <Ionicons
             name="remove-circle-outline"
-            size={24}
+            size={40}
             color="red"
             onPress={() => rejectRequest(item?.userId)}
             style={styles.icon}
@@ -236,12 +234,12 @@ const approveRequest = async (requestId) => {
       </View>
     );
   };
+  
 
   /** Render UI based on roles */
   if (userRole === "teacher") {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Pending Requests</Text>
+      <View style={styles.container}>       
         {requests.length === 0 ? (
           <Text style={styles.noRequests}>No pending requests.</Text>
         ) : (
@@ -299,19 +297,32 @@ const styles = StyleSheet.create({
     color: "gray",
   },
   requestCard: {
+    flexDirection: "row", // Align text and icons in a row
     padding: 10,
     marginBottom: 10,
     borderWidth: 1,
     borderRadius: 8,
     borderColor: "lightgray",
+    alignItems: "center", // Center align items vertically
   },
-  requestText: {
+  textContainer: {
+    flex: 1, // Take up remaining space to push icons to the right
+  },
+  nameText: {
     fontSize: 16,
+    fontWeight: "bold", // Bold for the name
+  },
+  emailText: {
+    fontSize: 12, // Smaller font size for email
+    color: "gray", // Optional: Make email text gray
   },
   iconContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
+    flexDirection: "row", // Place icons in a row
+    justifyContent: "space-between",
     alignItems: "center",
+  },
+  icon: {
+    marginHorizontal: 5, // Add spacing between icons
   },
   icon: {
     marginHorizontal: 10,
