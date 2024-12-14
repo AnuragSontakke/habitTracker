@@ -19,6 +19,7 @@ import Category from "../../components/Home/Category";
 import BusinessList from "../../components/Home/BusinessList";
 import NewTaskCard from "../../components/Home/NewTaskCard";
 import { updateRole } from "../../services/updateRole";
+import Challenges from "../tasks/challenges";
 
 // Synchronous helper function to generate unique teacher codes
 const generateUniqueTeacherCode = () => {
@@ -130,6 +131,7 @@ export default function Home() {
         {role === "admin" && <Category />}
         {role === "admin" && <BusinessList />}
         {role === "teacher" && <NewTaskCard />}
+        <Challenges />
         <View style={{ height: 50 }} />
       </ScrollView>
 
