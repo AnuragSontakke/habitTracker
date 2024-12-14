@@ -15,13 +15,15 @@ import { useNavigation } from "expo-router";
 import { Colors } from "../../constants/Colors";
 import Ionicons from '@expo/vector-icons/Ionicons'; 
 import { useUserContext } from "../../contexts/UserContext";
+import { updateRole } from "../../services/updateRole";
+import { useAuth } from "@clerk/clerk-expo";
 
 export default function ManageMembers() {
   const [memberList, setMemberList] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const navigation = useNavigation();
-
+  const { getToken } = useAuth();
   // Access user role and logged-in user's ID from context
   const { userRole, userId } = useUserContext();
 
@@ -89,8 +91,19 @@ export default function ManageMembers() {
 
   async function handleRoleChange(clerkId, newRole) {
     try {
+   // Use `useAuth` to fetch the token
+
+   const token = await getToken();
+
+   if (!token) {
+     throw new Error("Something went wrong");
+   }
+
+   console.log("Retrieved token:", token);
       const userRef = doc(db, "users", clerkId);
       await updateDoc(userRef, { role: newRole });
+      console.log("token kaise",token)
+      await updateRole(clerkId, token, newRole);
       alert("Role updated successfully");
       getAllUsers();
     } catch (error) {
@@ -101,7 +114,7 @@ export default function ManageMembers() {
   const renderItem = ({ item }) => {
     let actionButtonLabel = "";
     let actionButtonStyle = null;
-
+console.log("dsdss", userRole)
     if (userRole === "admin" || userRole === "teacher") {
       if (item.role === "member") {
         actionButtonLabel = "Give Volunteer Access";
