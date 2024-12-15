@@ -84,6 +84,7 @@ export default function JoinNetwork() {
         requests: arrayUnion({
           email: userEmail || "",
           name: userName || "",
+          role: userRole || "member",
           userId,          
         }),
       });

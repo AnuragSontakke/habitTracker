@@ -152,7 +152,7 @@ export default function NewTask() {
         </View>
         
         <Text style={styles.completedDaysText}>
-          {Math.floor(daysPassed)} Days Completed
+          {Math.ceil(daysPassed)} Days Completed
         </Text>
       </View>
     );
