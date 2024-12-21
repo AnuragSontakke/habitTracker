@@ -7,11 +7,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { useAuth, useUser } from "@clerk/clerk-expo";
-import {
-  doc,
-  setDoc,
-  getDoc,
-} from "firebase/firestore";
+import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "../../configs/FirebaseConfig";
 import Header from "../../components/Home/Header";
 import Slider from "../../components/Home/Slider";
@@ -68,7 +64,7 @@ const syncUserToFirebase = async (user, token) => {
       if (!userSnapshot.exists() || !userSnapshot.data()?.uniqueTeacherCode) {
         const uniqueTeacherCode = generateUniqueTeacherCode();
         userData.uniqueTeacherCode = uniqueTeacherCode;
-        await syncTeacherNetwork(user, uniqueTeacherCode);  
+        await syncTeacherNetwork(user, uniqueTeacherCode);
       } else {
         userData.uniqueTeacherCode = userSnapshot.data()?.uniqueTeacherCode;
       }
@@ -131,7 +127,7 @@ export default function Home() {
         {role === "admin" && <Category />}
         {role === "admin" && <BusinessList />}
         {role === "teacher" && <NewTaskCard />}
-        <Challenges />
+        {role !== "teacher" && role !== "admin" && <Challenges />}
         <View style={{ height: 50 }} />
       </ScrollView>
 

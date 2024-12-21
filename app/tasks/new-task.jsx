@@ -7,7 +7,8 @@ import {
   StyleSheet, 
   Alert, 
   ActivityIndicator, 
-  FlatList 
+  FlatList, 
+  ScrollView
 } from "react-native";
 import { useNavigation } from "expo-router";
 import { useUserContext } from "../../contexts/UserContext";
@@ -165,7 +166,7 @@ export default function NewTask() {
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container}>
       {userRole !== "teacher" ? (
         <Text style={styles.noPermissionText}>
           You don't have permission to create a task.
@@ -264,15 +265,14 @@ export default function NewTask() {
           </View>
         </>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     padding: 20,
-    justifyContent: "center",
   },
   label: {
     fontSize: 16,
