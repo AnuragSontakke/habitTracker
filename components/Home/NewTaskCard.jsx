@@ -1,15 +1,47 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Image, Alert } from "react-native";
 import { useRouter } from "expo-router";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../../configs/FirebaseConfig";
 import { Colors } from "../../constants/Colors";
+import { useUserContext } from "../../contexts/UserContext";
 
 // NewTaskCard Component
 export default function NewTaskCard() {
   const router = useRouter();
+  const [existingChallenges, setExistingChallenges] = useState([]);
+  const {userId} = useUserContext()
+
+  // Fetch challenges for the teacher
+  useEffect(() => {
+    const fetchChallenges = async () => {
+      try {
+        const teacherChallengesRef = doc(db, "challenge", userId);
+        const docSnap = await getDoc(teacherChallengesRef);
+        if (docSnap.exists()) {
+          const challengesData = docSnap.data().challenges || [];
+          setExistingChallenges(challengesData);
+        } else {
+          console.log("No challenges found for this teacher.");
+        }
+      } catch (error) {
+        console.error("Error fetching teacher's challenges:", error);
+      }
+    };
+
+    fetchChallenges();
+  }, [userId]);
+
+  // Handle task creation navigation
+  const handlePress = () => {
+   
+      router.push("/tasks/new-task");
+   
+  };
 
   return (
     <TouchableOpacity
-      onPress={() => router.push("/tasks/new-task")}
+      onPress={handlePress}
       activeOpacity={0.7}
       style={styles.card}
     >
@@ -21,7 +53,7 @@ export default function NewTaskCard() {
           resizeMode="contain"
         />
         {/* Text */}
-        <Text style={styles.cardText}>Create Challenge</Text>
+        <Text style={styles.cardText}>{existingChallenges.length > 0 ? "View Challenges" : "Create Challenge"}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -30,16 +62,17 @@ export default function NewTaskCard() {
 // Styles
 const styles = StyleSheet.create({
   card: {
-    marginTop: 20,
+    margin: 20,
     borderWidth: 2,
-    borderColor: Colors.PRIMARY,
-    borderRadius: 10,
+    borderColor: Colors.GRAY,
+    borderRadius: 25,  // Increased border radius
     paddingVertical: 15,
     paddingHorizontal: 25,
     marginBottom: 20,
     alignItems: "center",
     justifyContent: "center",
-    width: 250,
+    width: "90%", // Full width
+    maxWidth: 350,  // Optional: You can set a max width if you want to limit it on larger screens
     height: 100,
     alignSelf: "center",
     backgroundColor: "#fff",
@@ -54,13 +87,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   gif: {
-    width: 50, 
-    height: 50,
+    width: 70, 
+    height: 70,
     marginRight: 10,
   },
   cardText: {
     fontSize: 16,
-    fontFamily: "outfit-medium",
+    fontFamily: "outfit-bold",
     color: Colors.GRAY,
   },
 });
