@@ -14,7 +14,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore"; // Firestore methods
 import { Ionicons } from "@expo/vector-icons"; // For circular checkbox icon
 
 export default function Challenges() {
-  const { userTeacher, userId } = useUserContext();
+  const { userTeacher, userId, userName, userImage, userRole } = useUserContext();
   const [challenges, setChallenges] = useState([]);
   const [userChallengeData, setUserChallengeData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -95,7 +95,35 @@ export default function Challenges() {
           ? challenge.streak + 1
           : 1;
 
-      // Save updated data
+      // Calculate coins based on challenge type and streak
+      let coinsEarned = 0;
+      const challengeData = challenges.find(
+        (challengeItem) => challengeItem.challengeId === challengeId
+      );
+
+      if (challengeData) {
+        switch (challengeData.challengeName.toLowerCase()) {
+          case "meditation":
+            if (challenge.streak <= 10) coinsEarned = 4;
+            else if (challenge.streak <= 15) coinsEarned = 5;
+            else if (challenge.streak <= 21) coinsEarned = 6;
+            else coinsEarned = 7;
+            break;
+
+          case "kriya":
+            if (challenge.streak <= 10) coinsEarned = 5;
+            else if (challenge.streak <= 15) coinsEarned = 7;
+            else if (challenge.streak <= 21) coinsEarned = 9;
+            else coinsEarned = 10;
+            break;
+
+          default:
+            coinsEarned = 10; // custom points
+            break;
+        }
+      }
+
+      // Save updated challenge data
       await setDoc(
         userChallengeRef,
         { challenges: updatedChallenges },
@@ -103,9 +131,36 @@ export default function Challenges() {
       );
       setUserChallengeData(updatedChallenges); // Update local state
 
+      // Update coins in the "coin" collection for the user
+      const coinsRef = doc(db, "coin", userTeacher.teacherId); // Teacher's coin collection
+      const coinsSnap = await getDoc(coinsRef);
+      let userCoins = coinsSnap.exists() ? coinsSnap.data().coins : [];
+
+      const userCoinData = userCoins.find((coin) => coin.userId === userId);
+
+      if (userCoinData) {
+        userCoinData.coins += coinsEarned; // Add earned coins
+      } else {
+        userCoins.push({
+          userName: userName,
+          userId,
+          userImage: userImage, // Add user profile if needed
+          coins: coinsEarned,
+          userRole,
+          redeemed: 0,
+        });
+      }
+
+      // Save updated coins data
+      await setDoc(
+        coinsRef,
+        { coins: userCoins },
+        { merge: true }
+      );
+
       Alert.alert(
         "Challenge Completed!",
-        `Your streak is now: ${challenge.streak} day(s).`
+        `Your streak is now: ${challenge.streak} day(s). You earned ${coinsEarned} coins.`
       );
     } catch (error) {
       console.error("Error updating challenge completion:", error);
@@ -171,10 +226,10 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   title: {
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 20,
     marginBottom: 20,
-    textAlign: "center",
+    textAlign: "left",
+    fontFamily:"outfit-bold"
   },
   challengeItem: {
     flexDirection: "row",
@@ -193,15 +248,17 @@ const styles = StyleSheet.create({
   },
   challengeName: {
     fontSize: 18,
-    fontWeight: "bold",
+    fontFamily:"outfit-bold"
   },
   challengeDuration: {
     fontSize: 16,
     color: "#555",
+    fontFamily:"outfit-medium"
   },
   challengeDate: {
     fontSize: 14,
     color: "#888",
+    fontFamily:"outfit"
   },
   checkboxContainer: {
     justifyContent: "center",
@@ -213,5 +270,6 @@ const styles = StyleSheet.create({
     color: "#888",
     textAlign: "center",
     marginTop: 20,
+    fontFamily:"outfit"
   },
 });

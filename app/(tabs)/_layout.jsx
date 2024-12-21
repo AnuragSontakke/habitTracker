@@ -9,7 +9,15 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor : Colors.PRIMARY
+        tabBarActiveTintColor : Colors.PRIMARY,
+        tabBarLabelStyle: {
+          fontFamily: 'outfit-bold',
+          fontSize: 13,
+        },
+        tabBarStyle: {
+          height: 60, // Increase tab bar height here
+          paddingBottom: 10, // Optional: Add some padding for a better look
+        },
       }}
     >
       <Tabs.Screen
