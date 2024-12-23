@@ -59,33 +59,56 @@ export default function Challenges() {
     }
   }, [userTeacher, userId]);
 
+  function getWeekNumber(date = new Date()) {
+    // Get the first day of the year
+    const startOfYear = new Date(date.getFullYear(), 0, 1);
+    
+    // Calculate the number of milliseconds since the start of the year
+    const diff = date - startOfYear;
+  
+    // Convert the difference to days
+    const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
+  
+    // Calculate the week number
+    const weekNumber = Math.ceil(dayOfYear / 7);
+  
+    return weekNumber;
+  }
+
   const handleChallengeCompletion = async (challengeId) => {
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date();
+      const weekNumber = getWeekNumber(today); // Calculate current week
+      const year = today.getFullYear();
+      const weekKey = `week${weekNumber}year${year}`;
+  
+      const todayDate = today.toISOString().split("T")[0];
+  
       const userChallengeRef = doc(db, "userChallenge", userId);
-
+  
+      // Fetch existing user challenges
       let updatedChallenges = { ...userChallengeData };
       if (!updatedChallenges[challengeId]) {
         updatedChallenges[challengeId] = { completed: [], streak: 0 };
       }
-
+  
       const challenge = updatedChallenges[challengeId];
-      const completedToday = challenge.completed.find(
-        (entry) => entry.date === today
+      const completedToday = challenge.completed.some(
+        (entry) => entry.date === todayDate
       );
-
+  
       if (completedToday) {
         Alert.alert(
-          "Already marked",
+          "Already Marked",
           "This challenge is already marked as completed for today."
         );
         return;
       }
-
-      challenge.completed.push({ date: today, status: true });
-
-      // Update streak logic
-      const yesterday = new Date(new Date().setDate(new Date().getDate() - 1))
+  
+      challenge.completed.push({ date: todayDate, status: true });
+  
+      // Update streak
+      const yesterday = new Date(today.setDate(today.getDate() - 1))
         .toISOString()
         .split("T")[0];
       const lastCompletion =
@@ -94,13 +117,13 @@ export default function Challenges() {
         lastCompletion && lastCompletion.date === yesterday
           ? challenge.streak + 1
           : 1;
-
-      // Calculate coins based on challenge type and streak
+  
+      // Calculate coins earned
       let coinsEarned = 0;
       const challengeData = challenges.find(
         (challengeItem) => challengeItem.challengeId === challengeId
       );
-
+  
       if (challengeData) {
         switch (challengeData.challengeName.toLowerCase()) {
           case "meditation":
@@ -109,64 +132,80 @@ export default function Challenges() {
             else if (challenge.streak <= 21) coinsEarned = 6;
             else coinsEarned = 7;
             break;
-
+  
           case "kriya":
             if (challenge.streak <= 10) coinsEarned = 5;
             else if (challenge.streak <= 15) coinsEarned = 7;
             else if (challenge.streak <= 21) coinsEarned = 9;
             else coinsEarned = 10;
             break;
-
+  
           default:
             coinsEarned = 10; // custom points
             break;
         }
       }
-
-      // Save updated challenge data
+  
+      // Save updated challenges
       await setDoc(
         userChallengeRef,
         { challenges: updatedChallenges },
         { merge: true }
       );
       setUserChallengeData(updatedChallenges); // Update local state
-
+  
       // Update coins in the "coin" collection for the user
       const coinsRef = doc(db, "coin", userTeacher.teacherId); // Teacher's coin collection
       const coinsSnap = await getDoc(coinsRef);
       let userCoins = coinsSnap.exists() ? coinsSnap.data().coins : [];
-
-      const userCoinData = userCoins.find((coin) => coin.userId === userId);
-
-      if (userCoinData) {
-        userCoinData.coins += coinsEarned; // Add earned coins
-      } else {
-        userCoins.push({
-          userName: userName,
+  
+      // Find or initialize user data
+      let userCoinData = userCoins.find((coin) => coin.userId === userId);
+  
+      if (!userCoinData) {
+        userCoinData = {
+          userName,
           userId,
-          userImage: userImage, // Add user profile if needed
-          coins: coinsEarned,
+          userImage,
           userRole,
-          redeemed: 0,
-        });
+          weekly: {},
+          allTime: { coins: 0, streak: 0 },
+        };
+        userCoins.push(userCoinData);
       }
-
-      // Save updated coins data
+  
+      // Update weekly data
+      if (!userCoinData.weekly[weekKey]) {
+        userCoinData.weekly[weekKey] = { coins: 0, streak: 0 };
+      }
+  
+      userCoinData.weekly[weekKey].coins += coinsEarned;
+      userCoinData.weekly[weekKey].streak = challenge.streak;
+  
+      // Update all-time data
+      userCoinData.allTime.coins += coinsEarned;
+      userCoinData.allTime.streak = Math.max(
+        userCoinData.allTime.streak,
+        challenge.streak
+      );
+  
+      // Save updated coins
       await setDoc(
         coinsRef,
         { coins: userCoins },
         { merge: true }
       );
-
+  
       Alert.alert(
         "Challenge Completed!",
-        `Your streak is now: ${challenge.streak} day(s). You earned ${coinsEarned} coins.`
+        `Streak: ${challenge.streak} days. Coins Earned: ${coinsEarned}.`
       );
     } catch (error) {
       console.error("Error updating challenge completion:", error);
       Alert.alert("Error", "Failed to update challenge completion.");
     }
   };
+  
 
   const renderChallengeItem = ({ item }) => {
     const today = new Date().toISOString().split("T")[0];
