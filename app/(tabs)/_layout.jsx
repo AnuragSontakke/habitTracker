@@ -31,11 +31,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="feed"
         options={{
-          tabBarLabel: "Explore",
+          tabBarLabel: "Feed",
           tabBarIcon: ({ color }) => (
-            <Ionicons name="search" size={24} color={color} />
+            <Ionicons name="newspaper" size={24} color={color} />
           ),
         }}
       />
