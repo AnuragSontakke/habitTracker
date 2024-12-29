@@ -15,7 +15,7 @@ import { useUserContext } from "../../contexts/UserContext";
 import { Colors } from "../../constants/Colors";
 import { doc, setDoc, arrayUnion, getDoc, Timestamp } from "firebase/firestore";
 import { db } from "../../configs/FirebaseConfig";
-import ChallangePoints from "../../components/Instructions/challangePoints";
+import ChallangePoints from "../../pages/Instructions/challangePoints";
 
 export default function NewTask() {
   const { userRole, userId } = useUserContext();

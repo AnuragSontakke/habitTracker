@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useUser } from "@clerk/clerk-expo";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../configs/FirebaseConfig";
-import BusinessListCard from "../../components/Explore/BusinessListCard";
+import BusinessListCard from "../../pages/Explore/BusinessListCard";
 import { useNavigation } from "expo-router";
 import { Colors } from "../../constants/Colors";
 

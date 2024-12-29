@@ -4,9 +4,9 @@ import { useLocalSearchParams } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../configs/FirebaseConfig";
 import { Colors } from "../../constants/Colors";
-import Intro from "../../components/BusinessDetail/Intro";
-import ActionButton from "../../components/BusinessDetail/ActionButton";
-import Reviews from "../../components/BusinessDetail/Reviews";
+import Intro from "../../pages/BusinessDetail/Intro";
+import ActionButton from "../../pages/BusinessDetail/ActionButton";
+import Reviews from "../../pages/BusinessDetail/Reviews";
 
 export default function BusinessDetail() {
   const { businessid } = useLocalSearchParams();

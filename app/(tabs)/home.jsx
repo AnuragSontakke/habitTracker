@@ -9,11 +9,11 @@ import {
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { db } from "../../configs/FirebaseConfig";
-import Header from "../../components/Home/Header";
-import Slider from "../../components/Home/Slider";
-import Category from "../../components/Home/Category";
-import BusinessList from "../../components/Home/BusinessList";
-import NewTaskCard from "../../components/Home/NewTaskCard";
+import Header from "../../pages/Home/Header";
+import Slider from "../../pages/Home/Slider";
+import Category from "../../pages/Home/Category";
+import BusinessList from "../../pages/Home/BusinessList";
+import NewTaskCard from "../../pages/Home/NewTaskCard";
 import { updateRole } from "../../services/updateRole";
 import Challenges from "../tasks/challenges";
 
