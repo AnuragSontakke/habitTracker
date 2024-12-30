@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -10,14 +10,27 @@ import {
 } from "react-native";
 import { useUserContext } from "../../contexts/UserContext";
 import { db } from "../../configs/FirebaseConfig";
-import { doc, getDoc, setDoc } from "firebase/firestore"; // Firestore methods
-import { Ionicons } from "@expo/vector-icons"; // For circular checkbox icon
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { Ionicons } from "@expo/vector-icons";
+import { Audio } from "expo-av";
+import Slider from "@react-native-community/slider";
+import { Colors } from "../../constants/Colors";
+import { config } from "../../config";
+import { Modal } from "../../components"; // Import the Modal component
 
 export default function Challenges() {
-  const { userTeacher, userId, userName, userImage, userRole } = useUserContext();
+  const { userTeacher, userId, userName, userImage, userRole } =
+    useUserContext();
   const [challenges, setChallenges] = useState([]);
   const [userChallengeData, setUserChallengeData] = useState({});
   const [loading, setLoading] = useState(true);
+  const [audioLoading, setAudioLoading] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [audioUri, setAudioUri] = useState(""); // Store the audio URI for the modal
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const sound = useRef(new Audio.Sound());
 
   useEffect(() => {
     const fetchChallenges = async () => {
@@ -28,7 +41,6 @@ export default function Challenges() {
       }
 
       try {
-        // Fetch challenges for the teacher
         const challengesRef = doc(db, "challenge", userTeacher.teacherId);
         const challengesSnap = await getDoc(challengesRef);
 
@@ -38,7 +50,6 @@ export default function Challenges() {
           Alert.alert("No Challenges", "This teacher has no challenges.");
         }
 
-        // Fetch user's challenge completion data
         const userChallengeRef = doc(db, "userChallenge", userId);
         const userChallengeSnap = await getDoc(userChallengeRef);
 
@@ -52,12 +63,88 @@ export default function Challenges() {
         setLoading(false);
       }
     };
+
     if (userTeacher?.teacherId) {
       fetchChallenges();
     } else {
       setLoading(false);
     }
   }, [userTeacher, userId]);
+
+  const updateProgress = async (status, item) => {
+    if (status.isLoaded) {
+      setProgress(status.positionMillis);
+      setDuration(status.durationMillis);
+
+      const tenPercent = status.durationMillis * 0.02;
+      const today = new Date().toISOString().split("T")[0];
+
+      if (
+        status.positionMillis >= tenPercent &&
+        !userChallengeData[item.challengeId]?.completed?.some(
+          (entry) => entry.date === today
+        )
+      ) {
+        await handleChallengeCompletion(item.challengeId);
+      }
+    }
+  };
+
+  const playAudio = async (audioUri, item) => {
+    try {
+      const status = await sound.current.getStatusAsync();
+      if (!status.isLoaded) {
+        setAudioLoading(true);
+        await sound.current.loadAsync({ uri: audioUri });
+        setAudioLoading(false);
+      }
+      await sound.current.playAsync();
+      setIsPlaying(true);
+      sound.current.setOnPlaybackStatusUpdate((status)=>updateProgress(status, item));
+    } catch (error) {
+      console.error("Error playing audio:", error);
+    }
+  };
+
+  const pauseAudio = async () => {
+    try {
+      await sound.current.pauseAsync();
+      setIsPlaying(false);
+    } catch (error) {
+      console.error("Error pausing audio:", error);
+    }
+  };
+
+  const restartAudio = async () => {
+    try {
+      await sound.current.setPositionAsync(0); // Reset to the beginning
+      if (isPlaying) {
+        await sound.current.playAsync(); // Restart playback if audio is playing
+      }
+      setProgress(0); // Update UI to reflect the reset
+    } catch (error) {
+      console.error("Error restarting audio:", error);
+    }
+  };
+
+  const handleModalClose = async () => {
+    setModalVisible(false);
+    try {
+      const status = await sound.current.getStatusAsync(); // Check if the sound is loaded
+      if (status.isLoaded) {
+        await sound.current.setPositionAsync(0); // Reset to the beginning
+        setProgress(0); // Reset progress
+        if (isPlaying) {
+          await pauseAudio(); // Pause if playing
+        }
+      } else {
+        // Handle case when sound is not loaded yet
+        setProgress(0);
+      }
+    } catch (error) {
+      console.error("Error resetting audio on modal close:", error);
+    }
+  };
 
   function getWeekNumber(date = new Date()) {
     // Get the first day of the year
@@ -83,7 +170,7 @@ export default function Challenges() {
       const weekKey = `week${weekNumber}year${year}`;
   
       const todayDate = today.toISOString().split("T")[0];
-  
+
       const userChallengeRef = doc(db, "userChallenge", userId);
   
       // Fetch existing user challenges
@@ -91,12 +178,12 @@ export default function Challenges() {
       if (!updatedChallenges[challengeId]) {
         updatedChallenges[challengeId] = { completed: [], streak: 0 };
       }
-  
+
       const challenge = updatedChallenges[challengeId];
       const completedToday = challenge.completed.some(
         (entry) => entry.date === todayDate
       );
-  
+
       if (completedToday) {
         Alert.alert(
           "Already Marked",
@@ -104,10 +191,9 @@ export default function Challenges() {
         );
         return;
       }
-  
+
       challenge.completed.push({ date: todayDate, status: true });
-  
-      // Update streak
+
       const yesterday = new Date(today.setDate(today.getDate() - 1))
         .toISOString()
         .split("T")[0];
@@ -117,13 +203,11 @@ export default function Challenges() {
         lastCompletion && lastCompletion.date === yesterday
           ? challenge.streak + 1
           : 1;
-  
-      // Calculate coins earned
+
       let coinsEarned = 0;
       const challengeData = challenges.find(
         (challengeItem) => challengeItem.challengeId === challengeId
       );
-  
       if (challengeData) {
         switch (challengeData.challengeName.toLowerCase()) {
           case "meditation":
@@ -145,15 +229,13 @@ export default function Challenges() {
             break;
         }
       }
-  
-      // Save updated challenges
       await setDoc(
         userChallengeRef,
         { challenges: updatedChallenges },
         { merge: true }
       );
       setUserChallengeData(updatedChallenges); // Update local state
-  
+
       // Update coins in the "coin" collection for the user
       const coinsRef = doc(db, "coin", userTeacher.teacherId); // Teacher's coin collection
       const coinsSnap = await getDoc(coinsRef);
@@ -161,7 +243,7 @@ export default function Challenges() {
   
       // Find or initialize user data
       let userCoinData = userCoins.find((coin) => coin.userId === userId);
-  
+
       if (!userCoinData) {
         userCoinData = {
           userName,
@@ -173,12 +255,12 @@ export default function Challenges() {
         };
         userCoins.push(userCoinData);
       }
-  
+
       // Update weekly data
       if (!userCoinData.weekly[weekKey]) {
         userCoinData.weekly[weekKey] = { coins: 0, streak: 0 };
       }
-  
+
       userCoinData.weekly[weekKey].coins += coinsEarned;
       userCoinData.weekly[weekKey].streak = challenge.streak;
   
@@ -188,14 +270,14 @@ export default function Challenges() {
         userCoinData.allTime.streak,
         challenge.streak
       );
-  
+
       // Save updated coins
       await setDoc(
         coinsRef,
         { coins: userCoins },
         { merge: true }
       );
-  
+
       Alert.alert(
         "Challenge Completed!",
         `Streak: ${challenge.streak} days. Coins Earned: ${coinsEarned}.`
@@ -205,7 +287,6 @@ export default function Challenges() {
       Alert.alert("Error", "Failed to update challenge completion.");
     }
   };
-  
 
   const renderChallengeItem = ({ item }) => {
     const today = new Date().toISOString().split("T")[0];
@@ -213,6 +294,13 @@ export default function Challenges() {
     const challengeCompletedToday = userChallenge?.completed?.some(
       (entry) => entry.date === today
     );
+    const audioUri = config.AUDIO;
+
+    const handleStartAudio = (item) => {
+      setAudioUri(audioUri);
+      setModalVisible(true);
+      playAudio(audioUri, item);
+    };
 
     return (
       <View style={styles.challengeItem}>
@@ -224,37 +312,112 @@ export default function Challenges() {
             {new Date(item.createdDate.seconds * 1000).toLocaleDateString()}
           </Text>
         </View>
-        <TouchableOpacity
-          style={styles.checkboxContainer}
-          onPress={() => handleChallengeCompletion(item.challengeId)}
-        >
-          <Ionicons
-            name={challengeCompletedToday ? "checkbox" : "checkbox-outline"}
-            size={36}
-            color={challengeCompletedToday ? "green" : "gray"}
-          />
-        </TouchableOpacity>
+
+        {item.challengeName.toLowerCase() === "kriya" ? (
+          <TouchableOpacity
+            style={!challengeCompletedToday ? styles.startButton : {}}
+            onPress={() => handleStartAudio(item)}
+            disabled={challengeCompletedToday}
+          >
+            {challengeCompletedToday ? <Ionicons
+              name="checkbox"
+              size={36}
+              color="green"
+            /> : <Text style={styles.startButtonText}>
+              {isPlaying ? "Pause" : "Start"}
+            </Text>}
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.checkboxContainer}
+            onPress={() => handleChallengeCompletion(item.challengeId)}
+          >
+            <Ionicons
+              name={challengeCompletedToday ? "checkbox" : "checkbox-outline"}
+              size={36}
+              color={challengeCompletedToday ? "green" : "gray"}
+            />
+          </TouchableOpacity>
+        )}
       </View>
     );
+  };
+
+  const formatTime = (millis) => {
+    const minutes = Math.floor(millis / 60000);
+    const seconds = Math.floor((millis % 60000) / 1000);
+    return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
   };
 
   return (
     <View style={styles.container}>
       {loading ? (
-        <ActivityIndicator size="large" color="#0000ff" />
+        <ActivityIndicator size="large" color={Colors.PRIMARY} />
       ) : (
-        <>
-          <Text style={styles.title}>Teacher's Challenges</Text>
-          <FlatList
-            data={challenges}
-            renderItem={renderChallengeItem}
-            keyExtractor={(item, index) => index.toString()}
-            ListEmptyComponent={
-              <Text style={styles.emptyListText}>No challenges available.</Text>
-            }
-          />
-        </>
+        <FlatList
+          data={challenges}
+          keyExtractor={(item) => item.challengeId}
+          renderItem={renderChallengeItem}
+          ListEmptyComponent={
+            <Text style={styles.noChallengesText}>
+              No challenges available.
+            </Text>
+          }
+        />
       )}
+
+      <Modal
+        visible={modalVisible}
+        onClose={handleModalClose}
+        showCloseIcon={true}
+        position="bottom"
+      >
+        <Text style={styles.modalText}>Short Kriya</Text>
+        {audioLoading ? (
+          <ActivityIndicator size="large" color={Colors.PRIMARY} />
+        ) : (
+          <View style={styles.audioPlayerContainer}>
+            {/* Row to align Restart and Play/Pause buttons */}
+            <View style={styles.controlsContainer}>
+              <TouchableOpacity
+                onPress={restartAudio}
+                style={styles.iconButton}
+              >
+                <Ionicons
+                  name="refresh-circle"
+                  size={60}
+                  color={Colors.PRIMARY}
+                />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={isPlaying ? pauseAudio : playAudio}
+                style={styles.iconButton}
+              >
+                <Ionicons
+                  name={isPlaying ? "pause-circle" : "play-circle"}
+                  size={80}
+                  color={Colors.PRIMARY}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.progressBarContainer}>
+              <Text style={styles.timeText}>{formatTime(progress)}</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={duration}
+                value={progress}
+                minimumTrackTintColor={Colors.PRIMARY}
+                maximumTrackTintColor={Colors.BACKGROUND}
+                thumbTintColor={Colors.PRIMARY}
+                disabled={true} // Prevent manual movement
+              />
+              <Text style={styles.timeText}>{formatTime(duration)}</Text>
+            </View>
+          </View>
+        )}
+      </Modal>
     </View>
   );
 }
@@ -268,7 +431,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     marginBottom: 20,
     textAlign: "left",
-    fontFamily:"outfit-bold"
+    fontFamily: "outfit-bold",
   },
   challengeItem: {
     flexDirection: "row",
@@ -287,17 +450,17 @@ const styles = StyleSheet.create({
   },
   challengeName: {
     fontSize: 18,
-    fontFamily:"outfit-bold"
+    fontFamily: "outfit-bold",
   },
   challengeDuration: {
     fontSize: 16,
     color: "#555",
-    fontFamily:"outfit-medium"
+    fontFamily: "outfit-medium",
   },
   challengeDate: {
     fontSize: 14,
     color: "#888",
-    fontFamily:"outfit"
+    fontFamily: "outfit",
   },
   checkboxContainer: {
     justifyContent: "center",
@@ -309,6 +472,50 @@ const styles = StyleSheet.create({
     color: "#888",
     textAlign: "center",
     marginTop: 20,
-    fontFamily:"outfit"
+    fontFamily: "outfit",
+  },
+  startButton: {
+    backgroundColor: Colors.PRIMARY,
+    padding: 10,
+    borderRadius: 5,
+    alignItems: "center",
+  },
+  startButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontFamily: "outfit-medium",
+  },
+  modalText: {
+    fontSize: 18,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  audioPlayerContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  controlsContainer: {
+    flexDirection: "row", // Align buttons horizontally
+    justifyContent: "center",
+    alignItems: "center",
+    marginVertical: 20,
+  },
+  iconButton: {
+    marginHorizontal: 20, // Add spacing between buttons
+  },
+  progressBarContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 20,
+  },
+  slider: {
+    flex: 1,
+    height: 40,
+  },
+  timeText: {
+    width: 40,
+    textAlign: "center",
+    fontSize: 14,
+    color: Colors.TEXT,
   },
 });
