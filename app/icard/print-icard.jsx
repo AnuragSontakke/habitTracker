@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { ScrollView, TextInput, StyleSheet, Text, TouchableOpacity, ActivityIndicator, View, Alert } from "react-native";
 import { Colors } from "../../constants/Colors";
 import { generatePDF } from "./generatePDF";
+import { generatePDFBack } from "./generatePDFBack";
 
 const PrintIcard = () => {
   const navigation = useNavigation();
@@ -61,6 +62,17 @@ const PrintIcard = () => {
     }
   };
 
+  const handleGeneratePDFBack = async () => {
+    setLoading(true); // Show loading indicator
+    try {
+      await generatePDFBack(inputs); // Generate PDF for the back side
+    } catch (error) {
+      console.error("Error generating PDF Back:", error);
+    } finally {
+      setLoading(false); // Hide loading indicator
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -111,13 +123,15 @@ const PrintIcard = () => {
       <TouchableOpacity style={styles.addButton} onPress={handleGeneratePDF}>
         <Text style={styles.addButtonText}>Print ICards</Text>
       </TouchableOpacity>
+      <TouchableOpacity style={styles.addButton} onPress={handleGeneratePDFBack}>
+        <Text style={styles.addButtonText}>Print Back Side</Text>
+      </TouchableOpacity>
       <TouchableOpacity style={styles.clearButton} onPress={clearInputs}>
         <Text style={styles.clearButtonText}>Clear All</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 };
-
 const styles = StyleSheet.create({
   container: {
     padding: 20,

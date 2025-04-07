@@ -20,21 +20,36 @@ export const generatePDF = async (inputs) => {
     ]);
 
     // Convert images to Base64
-    const mediBoyBase64 = await FileSystem.readAsStringAsync(mediBoyAsset.localUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    const mediGirlBase64 = await FileSystem.readAsStringAsync(mediGirlAsset.localUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    const aolLogoBase64 = await FileSystem.readAsStringAsync(aolLogoAsset.localUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    const mediBoyBase64 = await FileSystem.readAsStringAsync(
+      mediBoyAsset.localUri,
+      {
+        encoding: FileSystem.EncodingType.Base64,
+      }
+    );
+    const mediGirlBase64 = await FileSystem.readAsStringAsync(
+      mediGirlAsset.localUri,
+      {
+        encoding: FileSystem.EncodingType.Base64,
+      }
+    );
+    const aolLogoBase64 = await FileSystem.readAsStringAsync(
+      aolLogoAsset.localUri,
+      {
+        encoding: FileSystem.EncodingType.Base64,
+      }
+    );
 
     // Ensure the inputs array always has at least 8 entries
     const icardInputs = [
       ...inputs,
-      ...Array.from({ length: Math.ceil((10 - inputs.length) / 2) }, () => ({ name: "", gender: "Male" })),
-      ...Array.from({ length: Math.floor((10 - inputs.length) / 2) }, () => ({ name: "", gender: "Female" })),
+      ...Array.from({ length: Math.ceil((10 - inputs.length) / 2) }, () => ({
+        name: "",
+        gender: "Male",
+      })),
+      ...Array.from({ length: Math.floor((10 - inputs.length) / 2) }, () => ({
+        name: "",
+        gender: "Female",
+      })),
     ];
 
     // Define the HTML content for the PDF
@@ -71,7 +86,6 @@ export const generatePDF = async (inputs) => {
           .icard {
             width: 8.5cm;
             height: 5.5cm;
-            border: 1px solid #c0c0c0;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -142,4 +156,3 @@ export const generatePDF = async (inputs) => {
     alert(`Error: ${error.message || "An unknown error occurred."}`);
   }
 };
-

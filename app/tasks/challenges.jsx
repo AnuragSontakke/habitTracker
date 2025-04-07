@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   TouchableOpacity,
+  ScrollView,
 } from "react-native";
 import { useUserContext } from "../../contexts/UserContext";
 import { db } from "../../configs/FirebaseConfig";
@@ -17,6 +18,8 @@ import Slider from "@react-native-community/slider";
 import { Colors } from "../../constants/Colors";
 import { config } from "../../config";
 import { Modal } from "../../components"; // Import the Modal component
+import { Animated } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 
 export default function Challenges() {
   const { userTeacher, userId, userName, userImage, userRole } =
@@ -31,6 +34,11 @@ export default function Challenges() {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const sound = useRef(new Audio.Sound());
+  const challengeCompletionTracker = useRef(new Set());
+  const swipeAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const showStreakAnim = useRef(new Animated.Value(0)).current;
+  
 
   useEffect(() => {
     const fetchChallenges = async () => {
@@ -78,13 +86,20 @@ export default function Challenges() {
 
       const tenPercent = status.durationMillis * 0.02;
       const today = new Date().toISOString().split("T")[0];
+      const challengeKey = `${item.challengeId}-${today}`;
+
+      console.log("updateProgress1");
 
       if (
         status.positionMillis >= tenPercent &&
         !userChallengeData[item.challengeId]?.completed?.some(
           (entry) => entry.date === today
-        )
+        ) &&
+        !challengeCompletionTracker.current.has(challengeKey)
       ) {
+        console.log("updateProgress 2", item.challengeId);
+
+        challengeCompletionTracker.current.add(challengeKey); // Mark as completed
         await handleChallengeCompletion(item.challengeId);
       }
     }
@@ -100,7 +115,9 @@ export default function Challenges() {
       }
       await sound.current.playAsync();
       setIsPlaying(true);
-      sound.current.setOnPlaybackStatusUpdate((status)=>updateProgress(status, item));
+      sound.current.setOnPlaybackStatusUpdate((status) =>
+        updateProgress(status, item)
+      );
     } catch (error) {
       console.error("Error playing audio:", error);
     }
@@ -149,16 +166,16 @@ export default function Challenges() {
   function getWeekNumber(date = new Date()) {
     // Get the first day of the year
     const startOfYear = new Date(date.getFullYear(), 0, 1);
-    
+
     // Calculate the number of milliseconds since the start of the year
     const diff = date - startOfYear;
-  
+
     // Convert the difference to days
     const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
-  
+
     // Calculate the week number
     const weekNumber = Math.ceil(dayOfYear / 7);
-  
+
     return weekNumber;
   }
 
@@ -168,11 +185,11 @@ export default function Challenges() {
       const weekNumber = getWeekNumber(today); // Calculate current week
       const year = today.getFullYear();
       const weekKey = `week${weekNumber}year${year}`;
-  
+
       const todayDate = today.toISOString().split("T")[0];
 
       const userChallengeRef = doc(db, "userChallenge", userId);
-  
+
       // Fetch existing user challenges
       let updatedChallenges = { ...userChallengeData };
       if (!updatedChallenges[challengeId]) {
@@ -216,14 +233,14 @@ export default function Challenges() {
             else if (challenge.streak <= 21) coinsEarned = 6;
             else coinsEarned = 7;
             break;
-  
+
           case "kriya":
             if (challenge.streak <= 10) coinsEarned = 5;
             else if (challenge.streak <= 15) coinsEarned = 7;
             else if (challenge.streak <= 21) coinsEarned = 9;
             else coinsEarned = 10;
             break;
-  
+
           default:
             coinsEarned = 10; // custom points
             break;
@@ -240,7 +257,7 @@ export default function Challenges() {
       const coinsRef = doc(db, "coin", userTeacher.teacherId); // Teacher's coin collection
       const coinsSnap = await getDoc(coinsRef);
       let userCoins = coinsSnap.exists() ? coinsSnap.data().coins : [];
-  
+
       // Find or initialize user data
       let userCoinData = userCoins.find((coin) => coin.userId === userId);
 
@@ -263,7 +280,7 @@ export default function Challenges() {
 
       userCoinData.weekly[weekKey].coins += coinsEarned;
       userCoinData.weekly[weekKey].streak = challenge.streak;
-  
+
       // Update all-time data
       userCoinData.allTime.coins += coinsEarned;
       userCoinData.allTime.streak = Math.max(
@@ -272,11 +289,7 @@ export default function Challenges() {
       );
 
       // Save updated coins
-      await setDoc(
-        coinsRef,
-        { coins: userCoins },
-        { merge: true }
-      );
+      await setDoc(coinsRef, { coins: userCoins }, { merge: true });
 
       Alert.alert(
         "Challenge Completed!",
@@ -295,6 +308,8 @@ export default function Challenges() {
       (entry) => entry.date === today
     );
     const audioUri = config.AUDIO;
+    const completedDates =
+      userChallenge?.completed?.map((entry) => entry.date) || [];
 
     const handleStartAudio = (item) => {
       setAudioUri(audioUri);
@@ -302,42 +317,110 @@ export default function Challenges() {
       playAudio(audioUri, item);
     };
 
+    const getLast365Days = () => {
+      const days = [];
+      for (let i = 364; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split("T")[0];
+        days.push(dateStr);
+      }
+      return days;
+    };
+
+    const allDays = getLast365Days();
+    const todayIndex = allDays.findIndex((date) => date === today);
+
+    const renderDateItem = ({ item: date, index }) => {
+      const completed = completedDates.includes(date);
+      const day = new Date(date).getDate();
+      const month = new Date(date).toLocaleString("default", {
+        month: "short",
+      });
+
+      const isNewMonth =
+        index === 0 ||
+        new Date(date).getMonth() !== new Date(allDays[index - 1]).getMonth();
+
+      return (
+        <View style={styles.dateCircle}>
+          <View
+            style={[
+              styles.circle,
+              {
+                backgroundColor: completed ? Colors.PRIMARY : "white",
+                borderColor: completed ? "transparent" : Colors.PRIMARY,
+                borderWidth: completed ? 0 : 2,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.dateTextInside,
+                {
+                  color: completed ? "white" : Colors.PRIMARY,
+                },
+              ]}
+            >
+              {day}
+            </Text>
+          </View>
+          {isNewMonth && <Text style={styles.monthArrow}>↑ {month}</Text>}
+        </View>
+      );
+    };
+
     return (
       <View style={styles.challengeItem}>
-        <View style={styles.challengeTextContainer}>
-          <Text style={styles.challengeName}>{item.challengeName}</Text>
-          <Text style={styles.challengeDuration}>{item.challengeDuration}</Text>
-          <Text style={styles.challengeDate}>
-            Created on:{" "}
-            {new Date(item.createdDate.seconds * 1000).toLocaleDateString()}
-          </Text>
-        </View>
+        {!challengeCompletedToday && (
+          <View style={styles.challengeTextContainer}>
+            <Text style={styles.challengeName}>{item.challengeName}</Text>
+            <Text style={styles.challengeDuration}>
+              {item.challengeDuration}
+            </Text>
+          </View>
+        )}
 
-        {item.challengeName.toLowerCase() === "kriya" ? (
-          <TouchableOpacity
-            style={!challengeCompletedToday ? styles.startButton : {}}
-            onPress={() => handleStartAudio(item)}
-            disabled={challengeCompletedToday}
-          >
-            {challengeCompletedToday ? <Ionicons
-              name="checkbox"
-              size={36}
-              color="green"
-            /> : <Text style={styles.startButtonText}>
-              {isPlaying ? "Pause" : "Start"}
-            </Text>}
-          </TouchableOpacity>
+        {!challengeCompletedToday ? (
+          item.challengeName.toLowerCase() === "kriya" ? (
+            <TouchableOpacity
+              style={styles.startButton}
+              onPress={() => handleStartAudio(item)}
+            >
+              <Text style={styles.startButtonText}>
+                {isPlaying ? "Pause" : "Start"}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={() => handleChallengeCompletion(item.challengeId)}
+            >
+              <Ionicons name="checkbox-outline" size={36} color="gray" />
+            </TouchableOpacity>
+          )
         ) : (
-          <TouchableOpacity
-            style={styles.checkboxContainer}
-            onPress={() => handleChallengeCompletion(item.challengeId)}
-          >
-            <Ionicons
-              name={challengeCompletedToday ? "checkbox" : "checkbox-outline"}
-              size={36}
-              color={challengeCompletedToday ? "green" : "gray"}
+          <View style={styles.progressContainer}>
+            <Text style={styles.challengeName}>
+              {item.challengeName} Streak: {userChallenge?.streak || 0} {userChallenge?.streak > 5 ? "🔥" : ""}
+            </Text>
+
+            <FlatList
+              data={allDays}
+              keyExtractor={(item) => item}
+              renderItem={renderDateItem}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dateCircleContainer}
+              initialScrollIndex={todayIndex}
+              getItemLayout={(data, index) => ({
+                length: 40, // item width + margin
+                offset: 40 * index,
+                index,
+              })}
+              decelerationRate="fast"
             />
-          </TouchableOpacity>
+          </View>
         )}
       </View>
     );
@@ -517,5 +600,73 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 14,
     color: Colors.TEXT,
+  },
+  progressContainer: {
+    marginTop: 10,
+  },
+
+  streakText: {
+    fontSize: 14,
+    color: Colors.PRIMARY_DARK,
+    marginBottom: 4,
+    fontFamily: "outfit-medium",
+  },
+
+  dateCircleContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+    gap: 8,
+  },
+
+  dateCircle: {
+    alignItems: "center",
+    width: 40,
+  },
+
+  circle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginHorizontal: 2, // Optional: extra spacing inside the scroll
+  },
+
+  dateTextInside: {
+    fontSize: 14,
+    fontWeight: "600",
+    fontFamily: "outfit-medium",
+  },
+
+  dateCircleContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 8,
+  },
+
+  dateCircle: {
+    alignItems: "center",
+    width: 40,
+  },
+
+  progressContainer: {
+    marginTop: 10,
+    flex: 1,
+  },
+
+  streakText: {
+    fontSize: 14,
+    color: Colors.PRIMARY_DARK,
+    marginBottom: 6,
+    fontFamily: "outfit-medium",
+  },
+  monthArrow: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: Colors.PRIMARY,
+    marginTop: 4,
+    fontFamily: "outfit-medium",
+    textAlign: "center",
   },
 });

@@ -16,6 +16,7 @@ import BusinessList from "../../pages/Home/BusinessList";
 import NewTaskCard from "../../pages/Home/NewTaskCard";
 import { updateRole } from "../../services/updateRole";
 import Challenges from "../tasks/challenges";
+import { useUserContext } from "../../contexts/UserContext";
 
 // Synchronous helper function to generate unique teacher codes
 const generateUniqueTeacherCode = () => {
@@ -83,6 +84,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [role, setRole] = useState(null);
   const { getToken } = useAuth();
+  const {userTeacher, userId} = useUserContext()
 
   useEffect(() => {
     handleRefresh();
@@ -109,11 +111,10 @@ export default function Home() {
       setIsLoading(false);
     }
   };
-
   return (
     <View style={{ flex: 1 }}>
       {/* Fixed Header */}
-      <Header role={role} />
+      <Header role={role} userTeacher={userTeacher}  userId={userId}/>
 
       {/* Scrollable area */}
       <ScrollView
