@@ -17,6 +17,8 @@ import NewTaskCard from "../../pages/Home/NewTaskCard";
 import { updateRole } from "../../services/updateRole";
 import Challenges from "../tasks/challenges";
 import { useUserContext } from "../../contexts/UserContext";
+import Modal from "../../components/Modal";
+import PhoneVerification from "../login/phoneVerification";
 
 // Synchronous helper function to generate unique teacher codes
 const generateUniqueTeacherCode = () => {
@@ -84,7 +86,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [role, setRole] = useState(null);
   const { getToken } = useAuth();
-  const {userTeacher, userId} = useUserContext()
+  const { userTeacher, userId } = useUserContext();
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
 
   useEffect(() => {
     handleRefresh();
@@ -104,6 +107,12 @@ export default function Home() {
         await syncUserToFirebase(user, token);
         const userRole = user.publicMetadata?.role || "member";
         setRole(userRole);
+        const userRef = doc(db, "users", user.id);
+        const userSnapshot = await getDoc(userRef);
+
+        if (!userSnapshot.exists() || !userSnapshot.data()?.phoneVerified) {
+          setShowPhoneModal(true);
+        }
       }
     } catch (error) {
       console.error("Error during refresh.");
@@ -111,10 +120,11 @@ export default function Home() {
       setIsLoading(false);
     }
   };
+
   return (
     <View style={{ flex: 1 }}>
       {/* Fixed Header */}
-      <Header role={role} userTeacher={userTeacher}  userId={userId}/>
+      <Header role={role} userTeacher={userTeacher} userId={userId} />
 
       {/* Scrollable area */}
       <ScrollView
@@ -138,6 +148,20 @@ export default function Home() {
           <ActivityIndicator size="large" color="#007bff" />
         </View>
       )}
+      <Modal visible={showPhoneModal} position="center" showCloseIcon={false}>
+        <PhoneVerification
+          onVerified={async (phone) => {
+            // Update Firestore with phoneVerified status
+            const userRef = doc(db, "users", user.id);
+            await setDoc(
+              userRef,
+              { phoneVerified: true, phone },
+              { merge: true }
+            );
+            setShowPhoneModal(false);
+          }}
+        />
+      </Modal>
     </View>
   );
 }
