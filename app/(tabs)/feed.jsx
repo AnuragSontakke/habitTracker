@@ -1,218 +1,436 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
+  Image,
+  TextInput,
   StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Animated,
 } from "react-native";
-import { Modal } from "../../components";
-import { Audio } from "expo-av";
-import { Ionicons } from "@expo/vector-icons";
-import Slider from "@react-native-community/slider";
+import {
+  collection,
+  onSnapshot,
+  updateDoc,
+  doc,
+  arrayUnion,
+  query,
+  orderBy,
+} from "firebase/firestore";
+import { useUserContext } from "../../contexts/UserContext";
+import { db } from "../../configs/FirebaseConfig";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { Colors } from "../../constants/Colors";
-import { config } from "../../config";
+import { Modal } from "../../components";
+import CreateEventForm from "../../pages/Feeds/EventForm";
 
-export default function Feed() {
-  const [modalVisible, setModalVisible] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const sound = useRef(new Audio.Sound());
-  const audioUri = config.AUDIO;
+export default function EventsFeed() {
+  const { userId, userName, userRole, userTeacher } = useUserContext();
+  const [events, setEvents] = useState([]);
+  const [comments, setComments] = useState({});
+  const [teacherId, setTeacherId] = useState(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [newEvent, setNewEvent] = useState({
+    eventName: "",
+    eventType: "",
+    price: "",
+    eventImage: "",
+  });
+
+  const teacherName =
+    userRole === "teacher" ? userName : userTeacher?.teacherName || "";
 
   useEffect(() => {
-    return () => {
-      // Ensure sound is cleaned up when the component unmounts.
-      sound.current.unloadAsync();
-    };
-  }, []);
-
-  const updateProgress = async () => {
-    const status = await sound.current.getStatusAsync();
-    if (status.isLoaded) {
-      setProgress(status.positionMillis);
-      setDuration(status.durationMillis);
+    if (userRole === "teacher") {
+      setTeacherId(userId);
+    } else if (userRole === "volunteer" || userRole === "member") {
+      setTeacherId(userTeacher?.teacherId);
     }
+  }, [userRole, userId, userTeacher]);
+
+  useEffect(() => {
+    if (!teacherId) return;
+
+    const q = query(
+      collection(db, "teacherNetworks", teacherId, "events"),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setEvents(data);
+    });
+
+    return () => unsub();
+  }, [teacherId]);
+
+  const reactToEvent = async (eventId, field) => {
+    const ref = doc(db, "teacherNetworks", teacherId, "events", eventId);
+    await updateDoc(ref, {
+      [field]: arrayUnion({ userId, userName }),
+    });
   };
 
-  const playAudio = async () => {
-    try {
-      const status = await sound.current.getStatusAsync();
-      if (!status.isLoaded) {
-        setLoading(true);
-        await sound.current.loadAsync({ uri: audioUri });
-        setLoading(false);
-      }
-      await sound.current.playAsync();
-      setIsPlaying(true);
-      sound.current.setOnPlaybackStatusUpdate(updateProgress);
-    } catch (error) {
-      console.error("Error playing audio:", error);
-    }
+  const commentEvent = async (eventId) => {
+    const ref = doc(db, "teacherNetworks", teacherId, "events", eventId);
+    const commentText = comments[eventId]?.trim();
+    if (!commentText) return;
+
+    await updateDoc(ref, {
+      comments: arrayUnion({
+        userId,
+        userName,
+        userPic: "",
+        comment: commentText,
+      }),
+    });
+    setComments((prev) => ({ ...prev, [eventId]: "" }));
   };
 
-  const pauseAudio = async () => {
-    try {
-      await sound.current.pauseAsync();
-      setIsPlaying(false);
-    } catch (error) {
-      console.error("Error pausing audio:", error);
-    }
+  const handleAddEvent = () => {
+    setIsModalVisible(true);
   };
 
-  const restartAudio = async () => {
-    try {
-      await sound.current.setPositionAsync(0); // Reset to the beginning
-      if (isPlaying) {
-        await sound.current.playAsync(); // Restart playback if audio is playing
-      }
-      setProgress(0); // Update UI to reflect the reset
-    } catch (error) {
-      console.error("Error restarting audio:", error);
-    }
-  };
-
-  const handleModalClose = async () => {
-    setModalVisible(false);
-    try {
-      const status = await sound.current.getStatusAsync(); // Check if the sound is loaded
-      if (status.isLoaded) {
-        await sound.current.setPositionAsync(0); // Reset to the beginning
-        setProgress(0); // Reset progress
-        if (isPlaying) {
-          await pauseAudio(); // Pause if playing
-        }
-      } else {
-        // Handle case when sound is not loaded yet
-        setProgress(0);
-      }
-    } catch (error) {
-      console.error("Error resetting audio on modal close:", error);
-    }
-  };
-  
-
-  const formatTime = (millis) => {
-    const minutes = Math.floor(millis / 60000);
-    const seconds = Math.floor((millis % 60000) / 1000);
-    return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
-  };
+  const handleModalClose =()=>{
+    setIsModalVisible(false);
+  }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text>Feed</Text>
-      <View style={styles.container}>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setModalVisible(true)}
-        >
-          <Text style={styles.addButtonText}>Open Modal</Text>
-        </TouchableOpacity>
-        <Modal
-          visible={modalVisible}
-          onClose={handleModalClose}
-          showCloseIcon={true}
-          position="bottom"
-        >
-          <Text style={styles.modalText}>Short Kriya</Text>
-          {loading ? (
-            <ActivityIndicator size="large" color={Colors.PRIMARY} />
-          ) : (
-            <View style={styles.audioPlayerContainer}>
-              {/* Row to align Restart and Play/Pause buttons */}
-              <View style={styles.controlsContainer}>
-                <TouchableOpacity
-                  onPress={restartAudio}
-                  style={styles.iconButton}
-                >
-                  <Ionicons name="refresh-circle" size={60} color={Colors.PRIMARY} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={isPlaying ? pauseAudio : playAudio}
-                  style={styles.iconButton}
-                >
-                  <Ionicons
-                    name={isPlaying ? "pause-circle" : "play-circle"}
-                    size={80}
-                    color={Colors.PRIMARY}
-                  />
-                </TouchableOpacity>
+    <>
+      <Modal visible={isModalVisible} animationType="slide" position="center" onClose={handleModalClose} transparent={true}>
+      <CreateEventForm />
+      </Modal>
+
+      <View style={styles.headerContainer}>
+        <Text style={styles.headerText}>Feeds</Text>
+      </View>
+
+      <FlatList
+        data={events}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.container}
+        renderItem={({ item }) => {
+          const liked = item.likes?.some((r) => r.userId === userId);
+          const interested = item.interested?.some((r) => r.userId === userId);
+          const volunteered = item.volunteers?.some((r) => r.userId === userId);
+
+          return (
+            <View style={styles.card}>
+              <View style={styles.topBar}>
+                <Ionicons name="person-circle-outline" size={32} color="#555" />
+                <Text style={styles.userName}>{teacherName}</Text>
               </View>
 
-              <View style={styles.progressBarContainer}>
-                <Text style={styles.timeText}>{formatTime(progress)}</Text>
-                <Slider
-                  style={styles.slider}
-                  minimumValue={0}
-                  maximumValue={duration}
-                  value={progress}
-                  minimumTrackTintColor={Colors.PRIMARY}
-                  maximumTrackTintColor={Colors.BACKGROUND}
-                  thumbTintColor={Colors.PRIMARY}
-                  disabled={true} // Prevent manual movement
+              {item.eventImage && (
+                <Image source={{ uri: item.eventImage }} style={styles.image} />
+              )}
+
+              <View style={styles.actionsRow}>
+                <View style={{ flexDirection: "row" }}>
+                  <ReactionButton
+                    onPress={() => reactToEvent(item.id, "likes")}
+                    icon={
+                      <Ionicons
+                        name={liked ? "heart" : "heart-outline"}
+                        size={22}
+                        color={liked ? "red" : "black"}
+                        style={styles.icon}
+                      />
+                    }
+                  />
+                  <ReactionButton
+                    onPress={() => reactToEvent(item.id, "interested")}
+                    icon={
+                      <MaterialIcons
+                        name={interested ? "bookmark" : "bookmark-outline"}
+                        size={22}
+                        color={interested ? "gold" : "black"}
+                        style={styles.icon}
+                      />
+                    }
+                  />
+                </View>
+
+                {userRole === "member" &&
+                  (volunteered ? (
+                    <View style={styles.requestedButton}>
+                      <Text style={styles.requestedText}>Requested</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => reactToEvent(item.id, "volunteers")}
+                      style={styles.joinButton}
+                    >
+                      <Text style={styles.joinText}>Join as Volunteer</Text>
+                    </TouchableOpacity>
+                  ))}
+              </View>
+
+              <Text style={styles.reactions}>
+                ❤️ {item.likes?.length || 0} Likes ‧ 🔖{" "}
+                {item.interested?.length || 0} Interested ‧ 🤝{" "}
+                {item.volunteers?.length || 0} Volunteers
+              </Text>
+
+              <Text style={styles.caption}>
+                <Text style={styles.bold}>{item.eventName} </Text>•{" "}
+                {item.eventType} • ₹{item.price}
+              </Text>
+
+              {(item.comments || []).slice(0, 10).map((c, index) => (
+                <Text key={index} style={styles.comment}>
+                  <Text style={styles.bold}>{c.userName}</Text> {c.comment}
+                </Text>
+              ))}
+
+              <View style={styles.commentRow}>
+                <Ionicons
+                  name="happy-outline"
+                  size={20}
+                  color="gray"
+                  style={{ marginRight: 6 }}
                 />
-                <Text style={styles.timeText}>{formatTime(duration)}</Text>
+                <TextInput
+                  placeholder="Add a comment..."
+                  value={comments[item.id] || ""}
+                  onChangeText={(text) =>
+                    setComments((prev) => ({ ...prev, [item.id]: text }))
+                  }
+                  onSubmitEditing={() => commentEvent(item.id)}
+                  style={styles.commentInput}
+                />
               </View>
             </View>
-          )}
-        </Modal>
-      </View>
-    </ScrollView>
+          );
+        }}
+      />
+
+      {userRole === "teacher" && (
+        <TouchableOpacity style={styles.fab} onPress={handleAddEvent}>
+          <Ionicons name="add" size={32} color="#fff" />
+        </TouchableOpacity>
+      )}
+    </>
   );
 }
 
+const ReactionButton = ({ onPress, icon }) => {
+  const scale = new Animated.Value(1);
+
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.timing(scale, {
+        toValue: 1.4,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        friction: 3,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    onPress();
+  };
+
+  return (
+    <TouchableOpacity onPress={handlePress}>
+      <Animated.View style={{ transform: [{ scale }] }}>{icon}</Animated.View>
+    </TouchableOpacity>
+  );
+};
+
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    backgroundColor: Colors.BACKGROUND,
-    flexGrow: 1,
+    paddingTop: 100,
+    paddingBottom: 100,
+    paddingHorizontal: 15,
+    backgroundColor: "#8B8BFC33",
   },
-  modalText: {
-    fontSize: 18,
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  addButton: {
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 30,
     backgroundColor: Colors.PRIMARY,
-    padding: 12,
-    borderRadius: 5,
-    alignItems: "center",
-    marginBottom: 15,
-  },
-  addButtonText: {
-    color: Colors.PRIMARY_LIGHT,
-    fontFamily: "outfit-medium",
-    fontSize: 16,
-  },
-  audioPlayerContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: "center",
     justifyContent: "center",
+    elevation: 5,
+    zIndex: 100,
   },
-  controlsContainer: {
-    flexDirection: "row", // Align buttons horizontally
-    justifyContent: "center",
-    alignItems: "center",
-    marginVertical: 20,
+  card: {
+    backgroundColor: "#fff",
+    paddingVertical: 12,
+    marginBottom: 18,
+    borderTopWidth: 0.5,
+    borderColor: "#ddd",
+    borderRadius: 12,
+    overflow: "hidden",
+    elevation: 2,
   },
-  iconButton: {
-    marginHorizontal: 20, // Add spacing between buttons
-  },
-  progressBarContainer: {
+  topBar: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 20,
+    paddingHorizontal: 12,
+    paddingBottom: 8,
   },
-  slider: {
-    flex: 1,
-    height: 40,
-  },
-  timeText: {
-    width: 40,
-    textAlign: "center",
+  userName: {
+    marginLeft: 8,
+    fontWeight: "600",
     fontSize: 14,
-    color: Colors.TEXT,
+    fontFamily: "outfit-medium",
+  },
+  image: {
+    width: "100%",
+    height: 300,
+    resizeMode: "cover",
+  },
+  actionsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  icon: {
+    marginRight: 16,
+  },
+  reactions: {
+    fontWeight: "600",
+    fontSize: 13,
+    paddingHorizontal: 12,
+    marginTop: 6,
+    color: "#444",
+    fontFamily: "outfit-medium",
+  },
+  caption: {
+    paddingHorizontal: 12,
+    marginTop: 6,
+    fontSize: 13,
+    fontFamily: "outfit",
+  },
+  bold: {
+    fontWeight: "600",
+    fontFamily: "outfit-bold",
+  },
+  comment: {
+    paddingHorizontal: 12,
+    marginTop: 4,
+    fontSize: 13,
+    color: "#333",
+    fontFamily: "outfit",
+  },
+  commentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  commentInput: {
+    flex: 1,
+    borderBottomWidth: 0.5,
+    borderColor: "#ccc",
+    paddingVertical: 4,
+    fontSize: 14,
+    fontFamily: "outfit",
+  },
+  headerContainer: {
+    position: "absolute",
+    top: 40,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    backgroundColor: Colors.PRIMARY,
+    borderBottomWidth: 0.5,
+    borderColor: "#ccc",
+    zIndex: 10,
+  },
+  headerText: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#fff",
+    fontFamily: "outfit-bold",
+  },
+  requestedButton: {
+    backgroundColor: "#ddd",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  requestedText: {
+    color: "#555",
+    fontWeight: "600",
+    fontSize: 13,
+    fontFamily: "outfit-medium",
+  },
+  joinButton: {
+    backgroundColor: "#FFA500",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  joinText: {
+    color: "white",
+    fontWeight: "600",
+    fontSize: 13,
+    fontFamily: "outfit-medium",
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: "#000000aa",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    width: "90%",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 12,
+    fontFamily: "outfit-bold",
+  },
+  input: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#ccc",
+    marginBottom: 10,
+    fontSize: 14,
+    paddingVertical: 4,
+    fontFamily: "outfit",
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 12,
+  },
+  cancelButton: {
+    marginRight: 12,
+  },
+  submitButton: {
+    backgroundColor: Colors.PRIMARY,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+  },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontFamily: "outfit-medium",
   },
 });

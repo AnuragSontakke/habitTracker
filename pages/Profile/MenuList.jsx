@@ -153,9 +153,9 @@ const styles = StyleSheet.create({
     margin: 5,
     padding: 10,
     backgroundColor: "#fff",
-    borderWidth: 1,
+    // borderWidth: 3,
     borderRadius: 15,
-    borderColor: Colors.PRIMARY,
+    borderColor: Colors.PRIMARY_DARK,
   },
   iconWrapper: {
     width: 50,
@@ -170,6 +170,7 @@ const styles = StyleSheet.create({
     fontFamily: "outfit-medium",
     fontSize: 16,
     textAlign: "center",
+    color: Colors.PRIMARY_DARK,
   },
   footer: {
     alignItems: "center",
