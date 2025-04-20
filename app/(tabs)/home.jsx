@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import {
+  Text,
   View,
   ScrollView,
   StyleSheet,
@@ -19,6 +20,9 @@ import Challenges from "../tasks/challenges";
 import { useUserContext } from "../../contexts/UserContext";
 import Modal from "../../components/Modal";
 import PhoneVerification from "../login/phoneVerification";
+import { useCoinCount } from "../../hooks/useCoinCount"; // adjust path if needed
+import { LEVELS } from "../../constants/Levels";
+import LevelWithAnimation from "../../pages/Home/LabelWithAnimation";
 
 // Synchronous helper function to generate unique teacher codes
 const generateUniqueTeacherCode = () => {
@@ -88,6 +92,14 @@ export default function Home() {
   const { getToken } = useAuth();
   const { userTeacher, userId } = useUserContext();
   const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const coinCount = useCoinCount(userTeacher?.teacherId, userId);
+  const getCurrentLevel = () => {
+    // Find the highest level the user qualifies for
+    const current = [...LEVELS]
+      .reverse()
+      .find((level) => coinCount >= level.minCoins);
+    return current || LEVELS[0]; // fallback to first level
+  };
 
   useEffect(() => {
     handleRefresh();
@@ -162,6 +174,9 @@ export default function Home() {
           }}
         />
       </Modal>
+      {user && (
+        <LevelWithAnimation coinCount={coinCount} />
+      )}
     </View>
   );
 }
@@ -179,5 +194,25 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingTop: 140,
+  },
+  levelBadge: {
+    position: "absolute",
+    bottom: 150,
+    alignSelf: "center",
+    backgroundColor: "#fff",
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+
+  levelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
   },
 });
