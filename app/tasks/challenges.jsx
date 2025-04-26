@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Image,
   SafeAreaView,
+  Dimensions,
 } from "react-native";
 import { useUserContext } from "../../contexts/UserContext";
 import { db } from "../../configs/FirebaseConfig";
@@ -25,9 +26,11 @@ import { Audio } from "expo-av";
 import Slider from "@react-native-community/slider";
 import { Colors } from "../../constants/Colors";
 import { config } from "../../config";
-import { Modal } from "../../components"; // Import the Modal component
+import { Modal } from "../../components";
 import YoutubePlayer from "react-native-youtube-iframe";
 import * as Progress from "react-native-progress";
+
+const { width } = Dimensions.get("window");
 
 export default function Challenges() {
   const { userTeacher, userId, userName, userImage, userRole } =
@@ -35,13 +38,14 @@ export default function Challenges() {
   const [challenges, setChallenges] = useState([]);
   const [userChallengeData, setUserChallengeData] = useState({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [meditationLoading, setMeditationLoading] = useState(false);
   const [audioLoading, setAudioLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
-  const [audioUri, setAudioUri] = useState(""); // Store the audio URI for the modal
+  const [audioUri, setAudioUri] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(0);  
   const sound = useRef(new Audio.Sound());
   const challengeCompletionTracker = useRef(new Set());
   const [meditationList, setMeditationList] = useState([]);
@@ -54,52 +58,58 @@ export default function Challenges() {
   const [meditationProgress, setMeditationProgress] = useState(0);
   const playerRef = useRef();
 
+  // Cleanup audio on component unmount
+  useEffect(() => {
+    return () => {
+      sound.current.unloadAsync().catch((error) => {
+        console.warn("Error unloading audio:", error);
+      });
+    };
+  }, []);
+
+  // YouTube player progress tracking
   useEffect(() => {
     const interval = setInterval(async () => {
-      const elapsed_sec = await playerRef.current.getCurrentTime(); // Get current time in seconds
+      if (!playerRef.current || !selectedMeditation) return;
 
-      const totalDuration = await playerRef.current.getDuration(); // Get total video duration in seconds
-      const progressPercent = (elapsed_sec / totalDuration) * 100; // Calculate percentage progress
+      try {
+        const elapsed_sec = await playerRef.current.getCurrentTime();
+        const totalDuration = await playerRef.current.getDuration();
 
-      // Update the progress state
-      setMeditationProgress(progressPercent);
+        if (totalDuration <= 0) return;
 
-      if (
-        !meditationProgressUpdated &&
-        progressPercent >= 3 &&
-        progressPercent < 4
-      ) {
-        updateProgressMeditation(selectedMeditation);
-        setSelectedMeditation(null);
-        // Call any function here to mark video as nearly complete
-        setMeditationProgressUpdated(true); // Set the state to prevent further triggers
+        const progressPercent = (elapsed_sec / totalDuration) * 100;
+        setMeditationProgress(progressPercent);
+
+        if (!meditationProgressUpdated && progressPercent >= 3) {
+          updateProgressMeditation(selectedMeditation);
+          setMeditationProgressUpdated(true);
+        }
+
+        const elapsed_ms = Math.floor(elapsed_sec * 1000);
+        const ms = elapsed_ms % 1000;
+        const min = Math.floor(elapsed_ms / 60000);
+        const seconds = Math.floor((elapsed_ms - min * 60000) / 1000);
+
+        setElapsed(
+          `${min.toString().padStart(2, "0")}:${seconds
+            .toString()
+            .padStart(2, "0")}:${ms.toString().padStart(3, "0")}`
+        );
+      } catch (error) {
+        console.warn("Error fetching YouTube player data:", error);
       }
+    }, 500);
 
-      // Optional: Format and update the elapsed time in mm:ss:ms format
-      const elapsed_ms = Math.floor(elapsed_sec * 1000);
-      const ms = elapsed_ms % 1000;
-      const min = Math.floor(elapsed_ms / 60000);
-      const seconds = Math.floor((elapsed_ms - min * 60000) / 1000);
+    return () => clearInterval(interval);
+  }, [meditationProgressUpdated, selectedMeditation]);
 
-      setElapsed(
-        min.toString().padStart(2, "0") +
-          ":" +
-          seconds.toString().padStart(2, "0") +
-          ":" +
-          ms.toString().padStart(3, "0")
-      );
-    }, 100); // Refresh every 100ms for smooth progress tracking
-
-    return () => {
-      clearInterval(interval); // Cleanup on component unmount
-    };
-  }, [meditationProgressUpdated]);
-
+  // Fetch challenges
   useEffect(() => {
     const fetchChallenges = async () => {
-      if (!userTeacher || !userTeacher.teacherId) {
+      if (!userTeacher?.teacherId) {
         setLoading(false);
-        Alert.alert("Error", "Teacher ID is not available.");
+        setError("Teacher ID is not available.");
         return;
       }
 
@@ -110,7 +120,7 @@ export default function Challenges() {
         if (challengesSnap.exists()) {
           setChallenges(challengesSnap.data().challenges || []);
         } else {
-          Alert.alert("No Challenges", "This teacher has no challenges.");
+          setError("This teacher has no challenges.");
         }
 
         const userChallengeRef = doc(db, "userChallenge", userId);
@@ -121,7 +131,7 @@ export default function Challenges() {
         }
       } catch (error) {
         console.error("Error fetching data:", error);
-        Alert.alert("Error", "Failed to load challenges.");
+        setError("Failed to load challenges.");
       } finally {
         setLoading(false);
       }
@@ -134,9 +144,10 @@ export default function Challenges() {
     }
   }, [userTeacher, userId]);
 
+  // Fetch meditation list
   const getMeditationList = async () => {
     try {
-      setMeditationLoading(true); // Start loading before fetching
+      setMeditationLoading(true);
       const q = query(collection(db, "slider"));
       const querySnapshot = await getDocs(q);
       const sliders = [];
@@ -146,9 +157,9 @@ export default function Challenges() {
       setMeditationList(sliders);
     } catch (err) {
       console.error("Error fetching slider data:", err);
-      setError("Failed to load data. Please try again later.");
+      setError("Failed to load meditation data. Please try again later.");
     } finally {
-      setMeditationLoading(false); // Stop loading after fetch (success or error)
+      setMeditationLoading(false);
     }
   };
 
@@ -168,7 +179,7 @@ export default function Challenges() {
       setProgress(status.positionMillis);
       setDuration(status.durationMillis);
 
-      const tenPercent = status.durationMillis * 0.9;
+      const tenPercent = status.durationMillis * 0.01;
       const today = new Date().toISOString().split("T")[0];
       const challengeKey = `${item.challengeId}-${today}`;
 
@@ -179,13 +190,15 @@ export default function Challenges() {
         ) &&
         !challengeCompletionTracker.current.has(challengeKey)
       ) {
-        challengeCompletionTracker.current.add(challengeKey); // Mark as completed
+        challengeCompletionTracker.current.add(challengeKey);
         await handleChallengeCompletion(item.challengeId);
       }
     }
   };
 
   const updateProgressMeditation = async (item) => {
+    if (!item) return;
+
     const today = new Date().toISOString().split("T")[0];
     const challengeKey = `${item.challengeId}-${today}`;
 
@@ -195,26 +208,28 @@ export default function Challenges() {
       ) &&
       !challengeCompletionTracker.current.has(challengeKey)
     ) {
-      challengeCompletionTracker.current.add(challengeKey); // Mark as completed
+      challengeCompletionTracker.current.add(challengeKey);
       await handleChallengeCompletion(item.challengeId);
     }
   };
 
   const playAudio = async (audioUri, item) => {
     try {
-      const status = await sound.current.getStatusAsync();
-      if (!status.isLoaded) {
-        setAudioLoading(true);
-        await sound.current.loadAsync({ uri: audioUri });
-        setAudioLoading(false);
-      }
-      await sound.current.playAsync();
+      setAudioLoading(true);
+      const { sound: audioSound } = await Audio.Sound.createAsync(
+        { uri: audioUri },
+        { shouldPlay: true }
+      );
+      sound.current = audioSound;
+      setAudioLoading(false);
       setIsPlaying(true);
       sound.current.setOnPlaybackStatusUpdate((status) =>
         updateProgress(status, item)
       );
     } catch (error) {
       console.error("Error playing audio:", error);
+      setAudioLoading(false);
+      setError("Failed to play audio.");
     }
   };
 
@@ -229,11 +244,11 @@ export default function Challenges() {
 
   const restartAudio = async () => {
     try {
-      await sound.current.setPositionAsync(0); // Reset to the beginning
+      await sound.current.setPositionAsync(0);
       if (isPlaying) {
-        await sound.current.playAsync(); // Restart playback if audio is playing
+        await sound.current.playAsync();
       }
-      setProgress(0); // Update UI to reflect the reset
+      setProgress(0);
     } catch (error) {
       console.error("Error restarting audio:", error);
     }
@@ -241,17 +256,13 @@ export default function Challenges() {
 
   const handleModalClose = async () => {
     setModalVisible(false);
+    setAudioUri("");
+    setIsPlaying(false);
+    setProgress(0);
     try {
-      const status = await sound.current.getStatusAsync(); // Check if the sound is loaded
+      const status = await sound.current.getStatusAsync();
       if (status.isLoaded) {
-        await sound.current.setPositionAsync(0); // Reset to the beginning
-        setProgress(0); // Reset progress
-        if (isPlaying) {
-          await pauseAudio(); // Pause if playing
-        }
-      } else {
-        // Handle case when sound is not loaded yet
-        setProgress(0);
+        await sound.current.unloadAsync();
       }
     } catch (error) {
       console.error("Error resetting audio on modal close:", error);
@@ -259,33 +270,21 @@ export default function Challenges() {
   };
 
   function getWeekNumber(date = new Date()) {
-    // Get the first day of the year
     const startOfYear = new Date(date.getFullYear(), 0, 1);
-
-    // Calculate the number of milliseconds since the start of the year
     const diff = date - startOfYear;
-
-    // Convert the difference to days
     const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
-
-    // Calculate the week number
-    const weekNumber = Math.ceil(dayOfYear / 7);
-
-    return weekNumber;
+    return Math.ceil(dayOfYear / 7);
   }
 
   const handleChallengeCompletion = async (challengeId) => {
     try {
       const today = new Date();
-      const weekNumber = getWeekNumber(today); // Calculate current week
+      const weekNumber = getWeekNumber(today);
       const year = today.getFullYear();
       const weekKey = `week${weekNumber}year${year}`;
-
       const todayDate = today.toISOString().split("T")[0];
 
       const userChallengeRef = doc(db, "userChallenge", userId);
-
-      // Fetch existing user challenges
       let updatedChallenges = { ...userChallengeData };
       if (!updatedChallenges[challengeId]) {
         updatedChallenges[challengeId] = { completed: [], streak: 0 };
@@ -328,16 +327,14 @@ export default function Challenges() {
             else if (challenge.streak <= 21) coinsEarned = 6;
             else coinsEarned = 7;
             break;
-
           case "kriya":
             if (challenge.streak <= 10) coinsEarned = 5;
             else if (challenge.streak <= 15) coinsEarned = 7;
             else if (challenge.streak <= 21) coinsEarned = 9;
             else coinsEarned = 10;
             break;
-
           default:
-            coinsEarned = 10; // custom points
+            coinsEarned = 10;
             break;
         }
       }
@@ -346,16 +343,13 @@ export default function Challenges() {
         { challenges: updatedChallenges },
         { merge: true }
       );
-      setUserChallengeData(updatedChallenges); // Update local state
+      setUserChallengeData(updatedChallenges);
 
-      // Update coins in the "coin" collection for the user
-      const coinsRef = doc(db, "coin", userTeacher.teacherId); // Teacher's coin collection
+      const coinsRef = doc(db, "coin", userTeacher.teacherId);
       const coinsSnap = await getDoc(coinsRef);
       let userCoins = coinsSnap.exists() ? coinsSnap.data().coins : [];
 
-      // Find or initialize user data
       let userCoinData = userCoins.find((coin) => coin.userId === userId);
-
       if (!userCoinData) {
         userCoinData = {
           userName,
@@ -368,22 +362,18 @@ export default function Challenges() {
         userCoins.push(userCoinData);
       }
 
-      // Update weekly data
       if (!userCoinData.weekly[weekKey]) {
         userCoinData.weekly[weekKey] = { coins: 0, streak: 0 };
       }
 
       userCoinData.weekly[weekKey].coins += coinsEarned;
       userCoinData.weekly[weekKey].streak = challenge.streak;
-
-      // Update all-time data
       userCoinData.allTime.coins += coinsEarned;
       userCoinData.allTime.streak = Math.max(
         userCoinData.allTime.streak,
         challenge.streak
       );
 
-      // Save updated coins
       await setDoc(coinsRef, { coins: userCoins }, { merge: true });
 
       Alert.alert(
@@ -404,15 +394,25 @@ export default function Challenges() {
   const extractYouTubeVideoId = (url) => {
     const regExp =
       /(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/[^\/]+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([a-zA-Z0-9_-]{11})/;
-    const match = url.match(regExp);
-    return match ? match[1] : null;
+    return url && typeof url === "string" ? url.match(regExp)?.[1] : null;
   };
 
   const getYouTubeThumbnail = (videoUrl) => {
-    const videoId = extractYouTubeVideoId(videoUrl); // Extract video ID
+    const videoId = extractYouTubeVideoId(videoUrl);
     return videoId
       ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
       : null;
+  };
+
+  const getLast30Days = () => {
+    const days = [];
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split("T")[0];
+      days.push(dateStr);
+    }
+    return days;
   };
 
   const renderChallengeItem = ({ item }) => {
@@ -421,28 +421,21 @@ export default function Challenges() {
     const challengeCompletedToday = userChallenge?.completed?.some(
       (entry) => entry.date === today
     );
-    const audioUri = config.AUDIO;
+    const audioUri = item.audioUri || config.AUDIO;
     const completedDates =
       userChallenge?.completed?.map((entry) => entry.date) || [];
 
-    const handleStartAudio = (item) => {
+    const handleStartAudio = () => {
+      if (!audioUri) {
+        Alert.alert("Error", "No audio available for this challenge.");
+        return;
+      }
       setAudioUri(audioUri);
       setModalVisible(true);
       playAudio(audioUri, item);
     };
 
-    const getLast365Days = () => {
-      const days = [];
-      for (let i = 364; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split("T")[0];
-        days.push(dateStr);
-      }
-      return days;
-    };
-
-    const allDays = getLast365Days();
+    const allDays = getLast30Days();
     const todayIndex = allDays.findIndex((date) => date === today);
 
     const renderDateItem = ({ item: date, index }) => {
@@ -499,7 +492,9 @@ export default function Challenges() {
           item.challengeName.toLowerCase() === "kriya" ? (
             <TouchableOpacity
               style={styles.startButton}
-              onPress={() => handleStartAudio(item)}
+              onPress={handleStartAudio}
+              accessibilityLabel={`Start ${item.challengeName}`}
+              accessibilityRole="button"
             >
               <Text style={styles.startButtonText}>
                 {isPlaying ? "Pause" : "Start"}
@@ -509,6 +504,8 @@ export default function Challenges() {
             <TouchableOpacity
               style={styles.startButton}
               onPress={() => handleStartMeditation(item)}
+              accessibilityLabel={`Start ${item.challengeName}`}
+              accessibilityRole="button"
             >
               <Text style={styles.startButtonText}>Start Meditation</Text>
             </TouchableOpacity>
@@ -516,6 +513,8 @@ export default function Challenges() {
             <TouchableOpacity
               style={styles.checkboxContainer}
               onPress={() => handleChallengeCompletion(item.challengeId)}
+              accessibilityLabel={`Complete ${item.challengeName}`}
+              accessibilityRole="checkbox"
             >
               <Ionicons name="checkbox-outline" size={36} color="gray" />
             </TouchableOpacity>
@@ -526,7 +525,6 @@ export default function Challenges() {
               {item.challengeName} Streak: {userChallenge?.streak || 0}{" "}
               {userChallenge?.streak > 5 ? "🔥" : ""}
             </Text>
-
             <FlatList
               data={allDays}
               keyExtractor={(item) => item}
@@ -536,7 +534,7 @@ export default function Challenges() {
               contentContainerStyle={styles.dateCircleContainer}
               initialScrollIndex={todayIndex}
               getItemLayout={(data, index) => ({
-                length: 40, // item width + margin
+                length: 40,
                 offset: 40 * index,
                 index,
               })}
@@ -553,11 +551,13 @@ export default function Challenges() {
     const seconds = Math.floor((millis % 60000) / 1000);
     return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
   };
-console.log("selectedMeditation",selectedMeditation)
+
   return (
     <View style={styles.container}>
       {loading ? (
         <ActivityIndicator size="large" color={Colors.PRIMARY} />
+      ) : error ? (
+        <Text style={styles.errorText}>{error}</Text>
       ) : (
         <FlatList
           data={challenges}
@@ -582,11 +582,12 @@ console.log("selectedMeditation",selectedMeditation)
           <ActivityIndicator size="large" color={Colors.PRIMARY} />
         ) : (
           <View style={styles.audioPlayerContainer}>
-            {/* Row to align Restart and Play/Pause buttons */}
             <View style={styles.controlsContainer}>
               <TouchableOpacity
                 onPress={restartAudio}
                 style={styles.iconButton}
+                accessibilityLabel="Restart audio"
+                accessibilityRole="button"
               >
                 <Ionicons
                   name="refresh-circle"
@@ -595,8 +596,10 @@ console.log("selectedMeditation",selectedMeditation)
                 />
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={isPlaying ? pauseAudio : playAudio}
+                onPress={isPlaying ? pauseAudio : () => playAudio(audioUri)}
                 style={styles.iconButton}
+                accessibilityLabel={isPlaying ? "Pause audio" : "Play audio"}
+                accessibilityRole="button"
               >
                 <Ionicons
                   name={isPlaying ? "pause-circle" : "play-circle"}
@@ -605,7 +608,6 @@ console.log("selectedMeditation",selectedMeditation)
                 />
               </TouchableOpacity>
             </View>
-
             <View style={styles.progressBarContainer}>
               <Text style={styles.timeText}>{formatTime(progress)}</Text>
               <Slider
@@ -616,7 +618,7 @@ console.log("selectedMeditation",selectedMeditation)
                 minimumTrackTintColor={Colors.PRIMARY}
                 maximumTrackTintColor={Colors.BACKGROUND}
                 thumbTintColor={Colors.PRIMARY}
-                disabled={true} // Prevent manual movement
+                disabled={true}
               />
               <Text style={styles.timeText}>{formatTime(duration)}</Text>
             </View>
@@ -635,14 +637,9 @@ console.log("selectedMeditation",selectedMeditation)
         }}
       >
         <SafeAreaView>
-          {
-            <Text style={styles.meditationModalTitle}>
-              {!selectedVideoId
-                ? "Select Meditation"
-                : "You can close your eyes now"}
-            </Text>
-          }
-
+          <Text style={styles.meditationModalTitle}>
+            {!selectedVideoId ? "Select Meditation" : "You can close your eyes now"}
+          </Text>
           {meditationLoading ? (
             <ActivityIndicator size="large" color={Colors.PRIMARY} />
           ) : selectedVideoId ? (
@@ -652,15 +649,15 @@ console.log("selectedMeditation",selectedMeditation)
                 ref={playerRef}
                 videoId={selectedVideoId}
                 play={true}
-                webViewStyle={{ opacity: 0.99 }} // Fix tiny bug where player sometimes flickers
+                webViewStyle={{ opacity: 0.99 }}
                 initialPlayerParams={{
-                  controls: 0, // Show controls (progress bar)
-                  modestbranding: true, // Hide YouTube logo
-                  showinfo: false, // Hide title
-                  rel: false, // Don't show related videos at end
-                  fs: false, // Hide fullscreen button
-                  cc_load_policy: 0, // Hide captions
-                  iv_load_policy: 3, // Hide annotations
+                  controls: 0,
+                  modestbranding: true,
+                  showinfo: false,
+                  rel: false,
+                  fs: false,
+                  cc_load_policy: 0,
+                  iv_load_policy: 3,
                 }}
                 onChangeState={(state) => {
                   if (state === "ended") {
@@ -670,16 +667,15 @@ console.log("selectedMeditation",selectedMeditation)
               />
               <View style={{ marginTop: 10 }}>
                 <Progress.Bar
-                  progress={meditationProgress / 100} // Convert percentage to a fraction
-                  width={null} // Full width of the parent container
-                  height={10} // Progress bar height
-                  borderRadius={5} // Rounded corners
-                  color={Colors.PRIMARY_DARK} // Green color
-                  unfilledColor={Colors.PRIMARY} // Light gray color for unfilled part
-                  borderWidth={0} // No border around the progress bar
+                  progress={meditationProgress / 100}
+                  width={null}
+                  height={10}
+                  borderRadius={5}
+                  color={Colors.PRIMARY_DARK}
+                  unfilledColor={Colors.PRIMARY}
+                  borderWidth={0}
                 />
                 <Text>Progress: {meditationProgress.toFixed(2)}%</Text>
-                {/* Display the progress percentage */}
               </View>
             </>
           ) : (
@@ -690,7 +686,11 @@ console.log("selectedMeditation",selectedMeditation)
               keyExtractor={(item, index) => index.toString()}
               renderItem={({ item }) => (
                 <View style={styles.meditationItem}>
-                  <TouchableOpacity onPress={() => handleVideoSelect(item)}>
+                  <TouchableOpacity
+                    onPress={() => handleVideoSelect(item)}
+                    accessibilityLabel={`Play meditation video ${item.title || "Meditation"}`}
+                    accessibilityRole="button"
+                  >
                     <View style={styles.thumbnailContainer}>
                       <Image
                         source={{
@@ -724,11 +724,12 @@ const styles = StyleSheet.create({
     padding: 20,
     marginTop: 20,
   },
-  title: {
-    fontSize: 20,
-    marginBottom: 20,
-    textAlign: "left",
-    fontFamily: "outfit-bold",
+  errorText: {
+    fontSize: 16,
+    color: "red",
+    textAlign: "center",
+    marginTop: 20,
+    fontFamily: "outfit",
   },
   challengeItem: {
     flexDirection: "row",
@@ -754,17 +755,12 @@ const styles = StyleSheet.create({
     color: "#555",
     fontFamily: "outfit-medium",
   },
-  challengeDate: {
-    fontSize: 14,
-    color: "#888",
-    fontFamily: "outfit",
-  },
   checkboxContainer: {
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 10,
   },
-  emptyListText: {
+  noChallengesText: {
     fontSize: 16,
     color: "#888",
     textAlign: "center",
@@ -792,13 +788,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   controlsContainer: {
-    flexDirection: "row", // Align buttons horizontally
+    flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     marginVertical: 20,
   },
   iconButton: {
-    marginHorizontal: 20, // Add spacing between buttons
+    marginHorizontal: 20,
   },
   progressBarContainer: {
     flexDirection: "row",
@@ -815,28 +811,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.TEXT,
   },
-  progressContainer: {
-    marginTop: 10,
-  },
 
-  streakText: {
-    fontSize: 14,
-    color: Colors.PRIMARY_DARK,
-    marginBottom: 4,
-    fontFamily: "outfit-medium",
-  },
-
-  dateCircleContainer: {
-    flexDirection: "row",
-    paddingHorizontal: 4,
-    paddingVertical: 8,
-    gap: 8,
-  },
-
-  dateCircle: {
-    alignItems: "center",
-    width: 40,
-  },
 
   circle: {
     width: 32,
@@ -844,9 +819,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    marginHorizontal: 2, // Optional: extra spacing inside the scroll
+    marginHorizontal: 2,
   },
-
   dateTextInside: {
     fontSize: 14,
     fontWeight: "600",
@@ -883,11 +857,6 @@ const styles = StyleSheet.create({
     fontFamily: "outfit-medium",
     textAlign: "center",
   },
-  // meditationModalContainer: {
-  //   flex: 1,
-  //   padding: 20,
-  //   backgroundColor: "#fff",
-  // },
   meditationModalTitle: {
     fontSize: 20,
     fontFamily: "outfit-bold",
@@ -905,8 +874,8 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   thumbnail: {
-    width: 250,
-    height: 145,
+    width: width * 0.6,
+    height: (width * 0.6 * 9) / 16,
     borderRadius: 20,
     borderWidth: 3,
     borderColor: Colors.PRIMARY_LIGHT,
@@ -920,3 +889,18 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -25 }, { translateY: -25 }],
   },
 });
+
+// Note: Ensure Firestore security rules are configured to restrict access to authorized users only.
+// Example:
+// rules_version = '2';
+// service cloud.firestore {
+//   match /databases/{database}/documents {
+//     match /challenge/{teacherId} {
+//       allow read: if request.auth != null && request.auth.uid == teacherId;
+//       allow write: if false;
+//     }
+//     match /userChallenge/{userId} {
+//       allow read, write: if request.auth != null && request.auth.uid == userId;
+//     }
+//   }
+// }
