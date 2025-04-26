@@ -6,7 +6,9 @@ import {
   Animated,
   Easing,
   StyleSheet,
+  LayoutChangeEvent,
 } from "react-native";
+import Svg, { Rect } from "react-native-svg";
 import LottieView from "lottie-react-native";
 
 const LEVELS = [
@@ -28,17 +30,24 @@ const getCurrentLevel = (coinCount) => {
 
 export default function LevelWithAnimation({ coinCount }) {
   const [isAnimating, setIsAnimating] = useState(false);
+  const [boxSize, setBoxSize] = useState({ width: 0, height: 0 });
   const animatedValue = useRef(new Animated.Value(0)).current;
   const breezeRef = useRef(null);
   const currentLevel = getCurrentLevel(coinCount);
 
+  const nextLevelIndex = LEVELS.findIndex(l => l.minCoins === currentLevel.minCoins) + 1;
+  const nextLevel = LEVELS[nextLevelIndex] || currentLevel;
+
+  const progressPercent = Math.min(
+    (coinCount - currentLevel.minCoins) / (nextLevel.minCoins - currentLevel.minCoins || 1),
+    1
+  );
+
   const triggerAnimation = () => {
     if (isAnimating) return;
     setIsAnimating(true);
-
     animatedValue.setValue(0);
     breezeRef.current?.play();
-
     Animated.sequence([
       Animated.timing(animatedValue, {
         toValue: 1,
@@ -57,9 +66,66 @@ export default function LevelWithAnimation({ coinCount }) {
     });
   };
 
+  const onBoxLayout = (event) => {
+    const { width, height } = event.nativeEvent.layout;
+    setBoxSize({ width, height });
+  };
+
+  const strokeWidth = 4;
+  const radius = Math.max(boxSize.width, boxSize.height) / 2 + strokeWidth;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference * (1 - progressPercent);
+
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={triggerAnimation}>
+      {/* Progress Circle */}
+      {boxSize.width > 0 && (
+        <Svg
+        width={boxSize.width + 8}
+        height={boxSize.height + 8}
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          marginLeft: -(boxSize.width + 8) / 2,
+          marginTop: -(boxSize.height + 8) / 2,
+          zIndex: -1,
+        }}
+      >
+        {/* Full Border Background */}
+        <Rect
+          x={4}
+          y={4}
+          width={boxSize.width}
+          height={boxSize.height}
+          rx={20} // same as your levelBox borderRadius
+          ry={20}
+          stroke="#444"
+          strokeWidth={4}
+          fill="none"
+        />
+        
+        {/* Progress */}
+        <Rect
+          x={4}
+          y={4}
+          width={boxSize.width}
+          height={boxSize.height}
+          rx={20}
+          ry={20}
+          stroke="#4CAF50"
+          strokeWidth={4}
+          strokeDasharray={(boxSize.width + boxSize.height) * 2}
+          strokeDashoffset={(boxSize.width + boxSize.height) * 2 * (1 - progressPercent)}
+          strokeLinecap="round"
+          fill="none"
+        />
+      </Svg>
+      
+      )}
+
+      {/* Level Box */}
+      <TouchableOpacity onPress={triggerAnimation} onLayout={onBoxLayout}>
         <View style={styles.levelBox}>
           <Text style={styles.levelText}>
             {currentLevel.emoji} {currentLevel.name}
@@ -67,7 +133,7 @@ export default function LevelWithAnimation({ coinCount }) {
         </View>
       </TouchableOpacity>
 
-      {/* Plant */}
+      {/* Plant Animation */}
       <Animated.View
         style={[
           styles.plantBox,
@@ -83,11 +149,11 @@ export default function LevelWithAnimation({ coinCount }) {
         <Text style={styles.plantEmoji}>🌱</Text>
       </Animated.View>
 
-      {/* Breeze */}
+      {/* Lottie */}
       <View style={styles.breezeContainer}>
         <LottieView
           ref={breezeRef}
-          source={require("../../assets/lottie/breeze.json")} // put your path
+          source={require("../../assets/lottie/birds.json")}
           style={styles.breezeAnimation}
           loop={false}
         />
@@ -112,12 +178,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     elevation: 5,
-    overflow: "hidden",
   },
   levelText: {
     color: "#fff",
     fontSize: 14,
     fontFamily: "outfit-bold",
+    textAlign: "center",
   },
   plantBox: {
     position: "absolute",
