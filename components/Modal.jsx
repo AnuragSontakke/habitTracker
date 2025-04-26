@@ -6,6 +6,7 @@ import {
   Animated,
   StyleSheet,
   BackHandler,
+  Text,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Colors } from "../constants/Colors";
@@ -16,6 +17,8 @@ const CustomModal = ({
   showCloseIcon = true,
   position = "bottom", // Default position
   children,
+  style, // Custom style prop
+  title, // New title prop
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current; // For opacity
   const slideAnim = useRef(new Animated.Value(300)).current; // For sliding (initially off-screen)
@@ -89,11 +92,17 @@ const CustomModal = ({
               transform: [{ translateY: slideAnim }], // Bind position to slide animation
               width: position === "center" ? "90%" : "100%", // Adjust width dynamically
             },
+            style, // Apply custom styles from prop
           ]}
         >
+         {title && (
+            <View style={styles.titleContainer}>
+              <Text style={styles.modalTitle}>{title}</Text>
+            </View>
+          )}
           {showCloseIcon && (
             <TouchableOpacity style={styles.closeIcon} onPress={onClose}>
-              <Ionicons name="close-circle" size={40} color={Colors.PRIMARY_DARK} />
+              <Ionicons name="close-circle" size={40} color={Colors.PRIMARY} />
             </TouchableOpacity>
           )}
           {children}
@@ -112,7 +121,6 @@ const styles = StyleSheet.create({
   modalContainer: {
     backgroundColor: "#fff",
     borderRadius: 10,
-    padding: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -124,6 +132,19 @@ const styles = StyleSheet.create({
     top: 10,
     right: 10,
     zIndex: 10,
+  },
+  titleContainer: {
+    backgroundColor: Colors.PRIMARY_DARK,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: "outfit-bold",
+    color: '#fff',
+    textAlign: "center",
   },
 });
 

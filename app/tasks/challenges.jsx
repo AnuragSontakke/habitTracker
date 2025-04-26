@@ -10,6 +10,7 @@ import {
   Image,
   SafeAreaView,
   Dimensions,
+  ScrollView,
 } from "react-native";
 import { useUserContext } from "../../contexts/UserContext";
 import { db } from "../../configs/FirebaseConfig";
@@ -45,7 +46,7 @@ export default function Challenges() {
   const [audioUri, setAudioUri] = useState("");
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [duration, setDuration] = useState(0);  
+  const [duration, setDuration] = useState(0);
   const sound = useRef(new Audio.Sound());
   const challengeCompletionTracker = useRef(new Set());
   const [meditationList, setMeditationList] = useState([]);
@@ -154,7 +155,11 @@ export default function Challenges() {
       querySnapshot.forEach((doc) => {
         sliders.push(doc.data());
       });
-      setMeditationList(sliders);
+  
+      // Shuffle the array
+      const shuffledSliders = sliders.sort(() => Math.random() - 0.5);
+  
+      setMeditationList(shuffledSliders);
     } catch (err) {
       console.error("Error fetching slider data:", err);
       setError("Failed to load meditation data. Please try again later.");
@@ -162,6 +167,7 @@ export default function Challenges() {
       setMeditationLoading(false);
     }
   };
+  
 
   useEffect(() => {
     getMeditationList();
@@ -171,7 +177,18 @@ export default function Challenges() {
     const videoId = extractYouTubeVideoId(item?.videoUrl);
     if (videoId) {
       setSelectedVideoId(videoId);
+      setSelectedMeditation(item);
     }
+  };
+
+  const handleRandomMeditation = () => {
+    if (meditationList.length === 0) {
+      Alert.alert("Error", "No meditations available.");
+      return;
+    }
+    const randomIndex = Math.floor(Math.random() * meditationList.length);
+    const randomMeditation = meditationList[randomIndex];
+    handleVideoSelect(randomMeditation);
   };
 
   const updateProgress = async (status, item) => {
@@ -507,7 +524,7 @@ export default function Challenges() {
               accessibilityLabel={`Start ${item.challengeName}`}
               accessibilityRole="button"
             >
-              <Text style={styles.startButtonText}>Start Meditation</Text>
+              <Text style={styles.startButtonText}>Start</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -635,83 +652,101 @@ export default function Challenges() {
           setMeditationProgressUpdated(false);
           setSelectedMeditation(null);
         }}
+        style={styles.meditationModal}
+        title={
+          selectedVideoId ? "Meditation in Progress" : "Select a Meditation"
+        }
+        stickyButtonText="Choose Random Meditation"
+        onStickyButtonPress={handleRandomMeditation}
       >
-        <SafeAreaView>
-          <Text style={styles.meditationModalTitle}>
-            {!selectedVideoId ? "Select Meditation" : "You can close your eyes now"}
-          </Text>
-          {meditationLoading ? (
-            <ActivityIndicator size="large" color={Colors.PRIMARY} />
-          ) : selectedVideoId ? (
-            <>
-              <YoutubePlayer
-                height={250}
-                ref={playerRef}
-                videoId={selectedVideoId}
-                play={true}
-                webViewStyle={{ opacity: 0.99 }}
-                initialPlayerParams={{
-                  controls: 0,
-                  modestbranding: true,
-                  showinfo: false,
-                  rel: false,
-                  fs: false,
-                  cc_load_policy: 0,
-                  iv_load_policy: 3,
-                }}
-                onChangeState={(state) => {
-                  if (state === "ended") {
-                    setSelectedVideoId(null);
-                  }
-                }}
-              />
-              <View style={{ marginTop: 10 }}>
-                <Progress.Bar
-                  progress={meditationProgress / 100}
-                  width={null}
-                  height={10}
-                  borderRadius={5}
-                  color={Colors.PRIMARY_DARK}
-                  unfilledColor={Colors.PRIMARY}
-                  borderWidth={0}
+        <SafeAreaView style={styles.meditationModalContainer}>
+          <ScrollView contentContainerStyle={styles.meditationScrollContent}>
+            {meditationLoading ? (
+              <ActivityIndicator size="large" color={Colors.PRIMARY} />
+            ) : selectedVideoId ? (
+              <>
+                <YoutubePlayer
+                  height={250}
+                  ref={playerRef}
+                  videoId={selectedVideoId}
+                  play={true}
+                  webViewStyle={{ opacity: 0.99 }}
+                  initialPlayerParams={{
+                    controls: 0,
+                    modestbranding: true,
+                    showinfo: false,
+                    rel: false,
+                    fs: false,
+                    cc_load_policy: 0,
+                    iv_load_policy: 3,
+                  }}
+                  onChangeState={(state) => {
+                    if (state === "ended") {
+                      setSelectedVideoId(null);
+                    }
+                  }}
                 />
-                <Text>Progress: {meditationProgress.toFixed(2)}%</Text>
-              </View>
-            </>
-          ) : (
-            <FlatList
-              data={meditationList}
-              nestedScrollEnabled={true}
-              contentContainerStyle={styles.flatListContent}
-              keyExtractor={(item, index) => index.toString()}
-              renderItem={({ item }) => (
-                <View style={styles.meditationItem}>
-                  <TouchableOpacity
-                    onPress={() => handleVideoSelect(item)}
-                    accessibilityLabel={`Play meditation video ${item.title || "Meditation"}`}
-                    accessibilityRole="button"
-                  >
-                    <View style={styles.thumbnailContainer}>
-                      <Image
-                        source={{
-                          uri:
-                            getYouTubeThumbnail(item.videoUrl) ||
-                            "https://via.placeholder.com/250x145",
-                        }}
-                        style={styles.thumbnail}
-                      />
-                      <Ionicons
-                        name="play-circle-outline"
-                        size={50}
-                        color="white"
-                        style={styles.playIcon}
-                      />
-                    </View>
-                  </TouchableOpacity>
+                <View style={{ marginTop: 10 }}>
+                  <Progress.Bar
+                    progress={meditationProgress / 100}
+                    width={null}
+                    height={10}
+                    borderRadius={5}
+                    color={Colors.PRIMARY_DARK}
+                    unfilledColor={Colors.PRIMARY}
+                    borderWidth={0}
+                  />
+                  <Text>Progress: {meditationProgress.toFixed(2)}%</Text>
                 </View>
-              )}
-            />
-          )}
+              </>
+            ) : (
+              <FlatList
+                data={meditationList}
+                nestedScrollEnabled={true}
+                contentContainerStyle={styles.flatListContent}
+                keyExtractor={(item, index) => index.toString()}
+                renderItem={({ item }) => (
+                  <View style={styles.meditationItem}>
+                    <TouchableOpacity
+                      onPress={() => handleVideoSelect(item)}
+                      accessibilityLabel={`Play meditation video ${
+                        item.title || "Meditation"
+                      }`}
+                      accessibilityRole="button"
+                    >
+                      <View style={styles.thumbnailContainer}>
+                        <Image
+                          source={{
+                            uri:
+                              getYouTubeThumbnail(item.videoUrl) ||
+                              "https://via.placeholder.com/250x145",
+                          }}
+                          style={styles.thumbnail}
+                        />
+                        <Ionicons
+                          name="play-circle-outline"
+                          size={50}
+                          color="white"
+                          style={styles.playIcon}
+                        />
+                      </View>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              />
+            )}
+            
+          </ScrollView>
+          {!selectedVideoId && <TouchableOpacity
+            style={styles.randomButton}
+            onPress={handleRandomMeditation}
+            accessibilityLabel="Choose Random Meditation"
+            accessibilityRole="button"
+          >
+            <Text style={styles.randomButtonText}>
+              Choose Random Meditation
+            </Text>
+          </TouchableOpacity>}
         </SafeAreaView>
       </Modal>
     </View>
@@ -811,8 +846,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.TEXT,
   },
-
-
   circle: {
     width: 32,
     height: 32,
@@ -826,23 +859,19 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontFamily: "outfit-medium",
   },
-
   dateCircleContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 8,
   },
-
   dateCircle: {
     alignItems: "center",
     width: 40,
   },
-
   progressContainer: {
     marginTop: 10,
     flex: 1,
   },
-
   streakText: {
     fontSize: 14,
     color: Colors.PRIMARY_DARK,
@@ -864,7 +893,7 @@ const styles = StyleSheet.create({
     color: Colors.PRIMARY,
   },
   flatListContent: {
-    paddingBottom: 20,
+    paddingBottom: 2,
   },
   meditationItem: {
     marginBottom: 20,
@@ -874,8 +903,8 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   thumbnail: {
-    width: width * 0.6,
-    height: (width * 0.6 * 9) / 16,
+    width: width * 0.75,
+    height: (width * 0.75 * 9) / 16,
     borderRadius: 20,
     borderWidth: 3,
     borderColor: Colors.PRIMARY_LIGHT,
@@ -888,19 +917,29 @@ const styles = StyleSheet.create({
     left: "50%",
     transform: [{ translateX: -25 }, { translateY: -25 }],
   },
+  meditationModal: {
+    height: Dimensions.get("window").height * 0.7, // Fixed height (70% of screen height)
+    justifyContent: "space-between",
+  },
+  meditationModalContainer: {
+    flex: 1,
+    padding: 20,
+  },
+  meditationScrollContent: {
+    paddingBottom: 20,
+  },
+  randomButton: {
+    backgroundColor: Colors.PRIMARY_DARK,
+    padding: 15,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 10,
+    position: "sticky",
+    bottom: 0,
+  },
+  randomButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontFamily: "outfit-medium",
+  },
 });
-
-// Note: Ensure Firestore security rules are configured to restrict access to authorized users only.
-// Example:
-// rules_version = '2';
-// service cloud.firestore {
-//   match /databases/{database}/documents {
-//     match /challenge/{teacherId} {
-//       allow read: if request.auth != null && request.auth.uid == teacherId;
-//       allow write: if false;
-//     }
-//     match /userChallenge/{userId} {
-//       allow read, write: if request.auth != null && request.auth.uid == userId;
-//     }
-//   }
-// }
