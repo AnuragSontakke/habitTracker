@@ -146,7 +146,7 @@ export default function LevelWithAnimation({ coinCount }) {
           },
         ]}
       >
-        <Text style={styles.plantEmoji}>🌱</Text>
+        <Text style={styles.plantEmoji}>{currentLevel.emoji}</Text>
       </Animated.View>
 
       {/* Lottie */}

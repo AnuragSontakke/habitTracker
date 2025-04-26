@@ -146,7 +146,7 @@ export default function Home() {
           <RefreshControl refreshing={false} onRefresh={handleRefresh} />
         }
       >
-        <Slider />
+        {/* <Slider /> */}
         {role === "admin" && <Category />}
         {role === "admin" && <BusinessList />}
         {role === "teacher" && <NewTaskCard />}

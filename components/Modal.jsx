@@ -8,6 +8,7 @@ import {
   BackHandler,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { Colors } from "../constants/Colors";
 
 const CustomModal = ({
   visible,
@@ -92,7 +93,7 @@ const CustomModal = ({
         >
           {showCloseIcon && (
             <TouchableOpacity style={styles.closeIcon} onPress={onClose}>
-              <Ionicons name="close-circle" size={24} color="#333" />
+              <Ionicons name="close-circle" size={40} color={Colors.PRIMARY_DARK} />
             </TouchableOpacity>
           )}
           {children}

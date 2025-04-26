@@ -7,19 +7,27 @@ import {
   ActivityIndicator,
   Alert,
   TouchableOpacity,
-  ScrollView,
+  Image,
+  SafeAreaView,
 } from "react-native";
 import { useUserContext } from "../../contexts/UserContext";
 import { db } from "../../configs/FirebaseConfig";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  setDoc,
+} from "firebase/firestore";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import Slider from "@react-native-community/slider";
 import { Colors } from "../../constants/Colors";
 import { config } from "../../config";
 import { Modal } from "../../components"; // Import the Modal component
-import { Animated } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import YoutubePlayer from "react-native-youtube-iframe";
+import * as Progress from "react-native-progress";
 
 export default function Challenges() {
   const { userTeacher, userId, userName, userImage, userRole } =
@@ -27,6 +35,7 @@ export default function Challenges() {
   const [challenges, setChallenges] = useState([]);
   const [userChallengeData, setUserChallengeData] = useState({});
   const [loading, setLoading] = useState(true);
+  const [meditationLoading, setMeditationLoading] = useState(false);
   const [audioLoading, setAudioLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [audioUri, setAudioUri] = useState(""); // Store the audio URI for the modal
@@ -35,10 +44,56 @@ export default function Challenges() {
   const [duration, setDuration] = useState(0);
   const sound = useRef(new Audio.Sound());
   const challengeCompletionTracker = useRef(new Set());
-  const swipeAnim = useRef(new Animated.Value(0)).current;
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const showStreakAnim = useRef(new Animated.Value(0)).current;
-  
+  const [meditationList, setMeditationList] = useState([]);
+  const [meditationModalVisible, setMeditationModalVisible] = useState(false);
+  const [selectedVideoId, setSelectedVideoId] = useState(null);
+  const [selectedMeditation, setSelectedMeditation] = useState(null);
+  const [meditationProgressUpdated, setMeditationProgressUpdated] =
+    useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [meditationProgress, setMeditationProgress] = useState(0);
+  const playerRef = useRef();
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const elapsed_sec = await playerRef.current.getCurrentTime(); // Get current time in seconds
+
+      const totalDuration = await playerRef.current.getDuration(); // Get total video duration in seconds
+      const progressPercent = (elapsed_sec / totalDuration) * 100; // Calculate percentage progress
+
+      // Update the progress state
+      setMeditationProgress(progressPercent);
+
+      if (
+        !meditationProgressUpdated &&
+        progressPercent >= 3 &&
+        progressPercent < 4
+      ) {
+        updateProgressMeditation(selectedMeditation);
+        setSelectedMeditation(null);
+        // Call any function here to mark video as nearly complete
+        setMeditationProgressUpdated(true); // Set the state to prevent further triggers
+      }
+
+      // Optional: Format and update the elapsed time in mm:ss:ms format
+      const elapsed_ms = Math.floor(elapsed_sec * 1000);
+      const ms = elapsed_ms % 1000;
+      const min = Math.floor(elapsed_ms / 60000);
+      const seconds = Math.floor((elapsed_ms - min * 60000) / 1000);
+
+      setElapsed(
+        min.toString().padStart(2, "0") +
+          ":" +
+          seconds.toString().padStart(2, "0") +
+          ":" +
+          ms.toString().padStart(3, "0")
+      );
+    }, 100); // Refresh every 100ms for smooth progress tracking
+
+    return () => {
+      clearInterval(interval); // Cleanup on component unmount
+    };
+  }, [meditationProgressUpdated]);
 
   useEffect(() => {
     const fetchChallenges = async () => {
@@ -79,16 +134,43 @@ export default function Challenges() {
     }
   }, [userTeacher, userId]);
 
+  const getMeditationList = async () => {
+    try {
+      setMeditationLoading(true); // Start loading before fetching
+      const q = query(collection(db, "slider"));
+      const querySnapshot = await getDocs(q);
+      const sliders = [];
+      querySnapshot.forEach((doc) => {
+        sliders.push(doc.data());
+      });
+      setMeditationList(sliders);
+    } catch (err) {
+      console.error("Error fetching slider data:", err);
+      setError("Failed to load data. Please try again later.");
+    } finally {
+      setMeditationLoading(false); // Stop loading after fetch (success or error)
+    }
+  };
+
+  useEffect(() => {
+    getMeditationList();
+  }, []);
+
+  const handleVideoSelect = (item) => {
+    const videoId = extractYouTubeVideoId(item?.videoUrl);
+    if (videoId) {
+      setSelectedVideoId(videoId);
+    }
+  };
+
   const updateProgress = async (status, item) => {
     if (status.isLoaded) {
       setProgress(status.positionMillis);
       setDuration(status.durationMillis);
 
-      const tenPercent = status.durationMillis * 0.02;
+      const tenPercent = status.durationMillis * 0.9;
       const today = new Date().toISOString().split("T")[0];
       const challengeKey = `${item.challengeId}-${today}`;
-
-      console.log("updateProgress1");
 
       if (
         status.positionMillis >= tenPercent &&
@@ -97,11 +179,24 @@ export default function Challenges() {
         ) &&
         !challengeCompletionTracker.current.has(challengeKey)
       ) {
-        console.log("updateProgress 2", item.challengeId);
-
         challengeCompletionTracker.current.add(challengeKey); // Mark as completed
         await handleChallengeCompletion(item.challengeId);
       }
+    }
+  };
+
+  const updateProgressMeditation = async (item) => {
+    const today = new Date().toISOString().split("T")[0];
+    const challengeKey = `${item.challengeId}-${today}`;
+
+    if (
+      !userChallengeData[item.challengeId]?.completed?.some(
+        (entry) => entry.date === today
+      ) &&
+      !challengeCompletionTracker.current.has(challengeKey)
+    ) {
+      challengeCompletionTracker.current.add(challengeKey); // Mark as completed
+      await handleChallengeCompletion(item.challengeId);
     }
   };
 
@@ -301,6 +396,25 @@ export default function Challenges() {
     }
   };
 
+  const handleStartMeditation = async (item) => {
+    setMeditationModalVisible(true);
+    setSelectedMeditation(item);
+  };
+
+  const extractYouTubeVideoId = (url) => {
+    const regExp =
+      /(?:youtu\.be\/|youtube\.com\/(?:[^\/]+\/[^\/]+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=))([a-zA-Z0-9_-]{11})/;
+    const match = url.match(regExp);
+    return match ? match[1] : null;
+  };
+
+  const getYouTubeThumbnail = (videoUrl) => {
+    const videoId = extractYouTubeVideoId(videoUrl); // Extract video ID
+    return videoId
+      ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
+      : null;
+  };
+
   const renderChallengeItem = ({ item }) => {
     const today = new Date().toISOString().split("T")[0];
     const userChallenge = userChallengeData[item.challengeId];
@@ -391,6 +505,13 @@ export default function Challenges() {
                 {isPlaying ? "Pause" : "Start"}
               </Text>
             </TouchableOpacity>
+          ) : item.challengeName.toLowerCase() === "meditation" ? (
+            <TouchableOpacity
+              style={styles.startButton}
+              onPress={() => handleStartMeditation(item)}
+            >
+              <Text style={styles.startButtonText}>Start Meditation</Text>
+            </TouchableOpacity>
           ) : (
             <TouchableOpacity
               style={styles.checkboxContainer}
@@ -402,7 +523,8 @@ export default function Challenges() {
         ) : (
           <View style={styles.progressContainer}>
             <Text style={styles.challengeName}>
-              {item.challengeName} Streak: {userChallenge?.streak || 0} {userChallenge?.streak > 5 ? "🔥" : ""}
+              {item.challengeName} Streak: {userChallenge?.streak || 0}{" "}
+              {userChallenge?.streak > 5 ? "🔥" : ""}
             </Text>
 
             <FlatList
@@ -431,7 +553,7 @@ export default function Challenges() {
     const seconds = Math.floor((millis % 60000) / 1000);
     return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
   };
-
+console.log("selectedMeditation",selectedMeditation)
   return (
     <View style={styles.container}>
       {loading ? (
@@ -501,6 +623,97 @@ export default function Challenges() {
           </View>
         )}
       </Modal>
+
+      <Modal
+        position="center"
+        visible={meditationModalVisible}
+        onClose={() => {
+          setMeditationModalVisible(false);
+          setSelectedVideoId(null);
+          setMeditationProgressUpdated(false);
+          setSelectedMeditation(null);
+        }}
+      >
+        <SafeAreaView>
+          {
+            <Text style={styles.meditationModalTitle}>
+              {!selectedVideoId
+                ? "Select Meditation"
+                : "You can close your eyes now"}
+            </Text>
+          }
+
+          {meditationLoading ? (
+            <ActivityIndicator size="large" color={Colors.PRIMARY} />
+          ) : selectedVideoId ? (
+            <>
+              <YoutubePlayer
+                height={250}
+                ref={playerRef}
+                videoId={selectedVideoId}
+                play={true}
+                webViewStyle={{ opacity: 0.99 }} // Fix tiny bug where player sometimes flickers
+                initialPlayerParams={{
+                  controls: 0, // Show controls (progress bar)
+                  modestbranding: true, // Hide YouTube logo
+                  showinfo: false, // Hide title
+                  rel: false, // Don't show related videos at end
+                  fs: false, // Hide fullscreen button
+                  cc_load_policy: 0, // Hide captions
+                  iv_load_policy: 3, // Hide annotations
+                }}
+                onChangeState={(state) => {
+                  if (state === "ended") {
+                    setSelectedVideoId(null);
+                  }
+                }}
+              />
+              <View style={{ marginTop: 10 }}>
+                <Progress.Bar
+                  progress={meditationProgress / 100} // Convert percentage to a fraction
+                  width={null} // Full width of the parent container
+                  height={10} // Progress bar height
+                  borderRadius={5} // Rounded corners
+                  color={Colors.PRIMARY_DARK} // Green color
+                  unfilledColor={Colors.PRIMARY} // Light gray color for unfilled part
+                  borderWidth={0} // No border around the progress bar
+                />
+                <Text>Progress: {meditationProgress.toFixed(2)}%</Text>
+                {/* Display the progress percentage */}
+              </View>
+            </>
+          ) : (
+            <FlatList
+              data={meditationList}
+              nestedScrollEnabled={true}
+              contentContainerStyle={styles.flatListContent}
+              keyExtractor={(item, index) => index.toString()}
+              renderItem={({ item }) => (
+                <View style={styles.meditationItem}>
+                  <TouchableOpacity onPress={() => handleVideoSelect(item)}>
+                    <View style={styles.thumbnailContainer}>
+                      <Image
+                        source={{
+                          uri:
+                            getYouTubeThumbnail(item.videoUrl) ||
+                            "https://via.placeholder.com/250x145",
+                        }}
+                        style={styles.thumbnail}
+                      />
+                      <Ionicons
+                        name="play-circle-outline"
+                        size={50}
+                        color="white"
+                        style={styles.playIcon}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              )}
+            />
+          )}
+        </SafeAreaView>
+      </Modal>
     </View>
   );
 }
@@ -509,6 +722,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
+    marginTop: 20,
   },
   title: {
     fontSize: 20,
@@ -520,7 +734,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     padding: 15,
     backgroundColor: "#f9f9f9",
-    marginBottom: 10,
+    marginBottom: 20,
     borderRadius: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -668,5 +882,41 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontFamily: "outfit-medium",
     textAlign: "center",
+  },
+  // meditationModalContainer: {
+  //   flex: 1,
+  //   padding: 20,
+  //   backgroundColor: "#fff",
+  // },
+  meditationModalTitle: {
+    fontSize: 20,
+    fontFamily: "outfit-bold",
+    marginBottom: 20,
+    color: Colors.PRIMARY,
+  },
+  flatListContent: {
+    paddingBottom: 20,
+  },
+  meditationItem: {
+    marginBottom: 20,
+    alignItems: "center",
+  },
+  thumbnailContainer: {
+    position: "relative",
+  },
+  thumbnail: {
+    width: 250,
+    height: 145,
+    borderRadius: 20,
+    borderWidth: 3,
+    borderColor: Colors.PRIMARY_LIGHT,
+  },
+  playIcon: {
+    position: "absolute",
+    backgroundColor: Colors.PRIMARY_LIGHT,
+    borderRadius: 99,
+    top: "50%",
+    left: "50%",
+    transform: [{ translateX: -25 }, { translateY: -25 }],
   },
 });

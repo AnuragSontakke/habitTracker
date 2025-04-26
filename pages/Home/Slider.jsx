@@ -1,15 +1,16 @@
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, Image } from "react-native";
 import React, { useEffect, useState } from "react";
-import { collection, query, getDocs } from "firebase/firestore";
+import { collection, query, getDocs, updateDoc, doc } from "firebase/firestore";
 import { db } from "../../configs/FirebaseConfig";
 import { Colors } from "../../constants/Colors";
-import { Linking } from 'react-native'; // For opening the video link
-import Ionicons from '@expo/vector-icons/Ionicons'; // Import Ionicons for play button
+import Ionicons from '@expo/vector-icons/Ionicons';
+import YoutubePlayer from 'react-native-youtube-iframe'; // For embedding YouTube video
 
 export default function Slider() {
   const [sliderList, setSliderList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [videoPlayed, setVideoPlayed] = useState({}); // To track completion of each video
 
   const getSliderList = async () => {
     try {
@@ -53,6 +54,19 @@ export default function Slider() {
     return videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null;
   };
 
+  // Function to handle video completion
+  const handleVideoComplete = async (videoId) => {
+    // Update Firestore or Local state to mark as completed
+    setVideoPlayed((prevState) => ({ ...prevState, [videoId]: true }));
+    
+    // You can also store this in Firebase if you want to track user progress
+    // For example, using updateDoc to mark completion
+    const userRef = doc(db, "users", "currentUserId"); // Replace with current user's ID
+    await updateDoc(userRef, {
+      completedVideos: [...(userRef.completedVideos || []), videoId],
+    });
+  };
+
   return (
     <View>
       <Text
@@ -78,7 +92,7 @@ export default function Slider() {
         renderItem={({ item }) => (
           <View style={{ marginRight: 20 }}>
             {/* Show YouTube Thumbnail with Play Button */}
-            <TouchableOpacity onPress={() => Linking.openURL(item.videoUrl)}>
+            <TouchableOpacity onPress={() => handleVideoComplete(item.videoUrl)}>
               <View style={{ position: 'relative' }}>
                 {/* YouTube Thumbnail */}
                 <Image
@@ -96,19 +110,31 @@ export default function Slider() {
                 {/* Play Button Icon */}
                 <Ionicons 
                   name="play-circle-outline"
-                  size={50} // Size of the play button
+                  size={50} 
                   color="white"
                   style={{
                     position: 'absolute',
                     backgroundColor: Colors.PRIMARY_LIGHT,
                     borderRadius: 99,
-                    top: '50%', // Position it vertically centered
-                    left: '50%', // Position it horizontally centered
-                    transform: [{ translateX: -25 }, { translateY: -25 }], // Adjust for icon size (half the size)
+                    top: '50%',
+                    left: '50%',
+                    transform: [{ translateX: -25 }, { translateY: -25 }],
                   }}
                 />
               </View>
             </TouchableOpacity>
+
+            {/* Embed the YouTube Player */}
+            <YoutubePlayer
+              height={200}
+              width={300}
+              videoId={extractYouTubeVideoId(item.videoUrl)}
+              onStateChange={(e) => {
+                if (e.state === "ended") {
+                  handleVideoComplete(item.videoUrl);
+                }
+              }}
+            />
           </View>
         )}
       />
