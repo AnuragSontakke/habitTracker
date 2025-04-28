@@ -120,7 +120,7 @@ export default function CreateEventForm() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Create New Event</Text>
+     
 
       <TextInput
         style={styles.input}
@@ -194,6 +194,7 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 50,
     backgroundColor: "#f9f9f9",
+    
   },
   title: {
     fontSize: 22,

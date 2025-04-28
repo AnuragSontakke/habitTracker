@@ -8,6 +8,7 @@ import {
   FlatList,
   TouchableOpacity,
   Animated,
+  Dimensions,
 } from "react-native";
 import {
   collection,
@@ -95,14 +96,22 @@ export default function EventsFeed() {
     setIsModalVisible(true);
   };
 
-  const handleModalClose =()=>{
+  const handleModalClose = () => {
     setIsModalVisible(false);
-  }
+  };
 
   return (
     <>
-      <Modal visible={isModalVisible} animationType="slide" position="center" onClose={handleModalClose} transparent={true}>
-      <CreateEventForm />
+      <Modal
+        visible={isModalVisible}
+        animationType="slide"
+        position="center"
+        onClose={handleModalClose}
+        transparent={true}
+        title="Create New Event"
+        style={styles.meditationModal}
+      >
+        <CreateEventForm />
       </Modal>
 
       <View style={styles.headerContainer}>
@@ -433,4 +442,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontFamily: "outfit-medium",
   },
+    meditationModal: {
+      height: Dimensions.get("window").height * 0.8, // Fixed height (70% of screen height)
+      justifyContent: "space-between",
+    },
 });
