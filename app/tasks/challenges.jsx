@@ -27,7 +27,7 @@ import { Audio } from "expo-av";
 import Slider from "@react-native-community/slider";
 import { Colors } from "../../constants/Colors";
 import { config } from "../../config";
-import { Modal } from "../../components";
+import { ChallengeCompletionModal, Modal } from "../../components";
 import YoutubePlayer from "react-native-youtube-iframe";
 import * as Progress from "react-native-progress";
 
@@ -177,7 +177,6 @@ export default function Challenges() {
     const videoId = extractYouTubeVideoId(item?.videoUrl);
     if (videoId) {
       setSelectedVideoId(videoId);
-      setSelectedMeditation(item);
     }
   };
 
@@ -294,6 +293,7 @@ export default function Challenges() {
   }
 
   const handleChallengeCompletion = async (challengeId) => {
+    console.log("challengeId",challengeId)
     try {
       const today = new Date();
       const weekNumber = getWeekNumber(today);
@@ -569,6 +569,14 @@ export default function Challenges() {
     return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
   };
 
+  const handleModalCloseMeditation = () => {
+    setMeditationModalVisible(false);
+    setSelectedVideoId(null);
+    setSelectedMeditation(null);
+    setMeditationProgressUpdated(false); // Reset progress tracking
+    setMeditationProgress(0);
+  };
+
   return (
     <View style={styles.container}>
       {loading ? (
@@ -646,12 +654,7 @@ export default function Challenges() {
       <Modal
         position="center"
         visible={meditationModalVisible}
-        onClose={() => {
-          setMeditationModalVisible(false);
-          setSelectedVideoId(null);
-          setMeditationProgressUpdated(false);
-          setSelectedMeditation(null);
-        }}
+        onClose={handleModalCloseMeditation}
         style={styles.meditationModal}
         title={
           selectedVideoId ? "Meditation in Progress" : "Select a Meditation"
@@ -749,6 +752,7 @@ export default function Challenges() {
           </TouchableOpacity>}
         </SafeAreaView>
       </Modal>
+      <ChallengeCompletionModal visible={true} challengeName="Mediation" streak="2" coinsEarned={3} />
     </View>
   );
 }
