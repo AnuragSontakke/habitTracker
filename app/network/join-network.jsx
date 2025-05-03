@@ -28,7 +28,17 @@ import { Ionicons } from "@expo/vector-icons";
 
 export default function JoinNetwork() {
   const navigation = useNavigation();
-  const { userRole, userId, userName, userEmail } = useUserContext(); // Fetch user role and ID from context
+  const {
+    userRole,
+    userId,
+    userName,
+    userEmail,
+    userPhone,
+    userCourses,
+    userProfession,
+    userUpgradeSessionDone
+  } = useUserContext();
+
   const [teacherCode, setTeacherCode] = useState("");
   const [requests, setRequests] = useState([]);
 
@@ -49,7 +59,7 @@ export default function JoinNetwork() {
       fetchTeacherRequests();
     }
   }, [userRole]);
-  /** Handle join network logic */
+
   const handleJoinNetwork = async () => {
     try {
       if (userRole !== "member" && userRole !== "volunteer") {
@@ -74,7 +84,6 @@ export default function JoinNetwork() {
       const teacherNetworkRef = doc(db, "teacherNetworks", teacherUserId);
 
       const teacherNetworkSnapshot = await getDoc(teacherNetworkRef);
-
       if (!teacherNetworkSnapshot.exists()) {
         Alert.alert("Teacher's network doesn't exist.");
         return;
@@ -82,10 +91,14 @@ export default function JoinNetwork() {
 
       await updateDoc(teacherNetworkRef, {
         requests: arrayUnion({
+          userId,
+          fullName: userName || "",
           email: userEmail || "",
-          name: userName || "",
           role: userRole || "member",
-          userId,          
+          phone: userPhone || "",
+          courses: userCourses || [],
+          profession: userProfession || "",
+          upgradeSessionDone: userUpgradeSessionDone || false,
         }),
       });
 
@@ -97,7 +110,6 @@ export default function JoinNetwork() {
     }
   };
 
-  /** Fetch pending requests for teacher */
   const fetchTeacherRequests = async () => {
     try {
       const teacherDocRef = doc(db, "teacherNetworks", userId);
@@ -106,100 +118,100 @@ export default function JoinNetwork() {
       if (teacherDocSnapshot?.exists()) {
         const pendingRequests = teacherDocSnapshot?.data()?.requests || [];
         setRequests(pendingRequests);
-      }else {
-        setRequests([]); // Clear out the requests if none exist
+      } else {
+        setRequests([]);
       }
     } catch (error) {
       Alert.alert("Failed to fetch teacher requests.");
     }
   };
 
-  /** Approve request & add user to members array */
-
-const approveRequest = async (requestId) => {
-  try {
-    // Fetch the user's data
-    const userSnapshot = await getDoc(doc(db, "users", requestId));
-    if (!userSnapshot.exists()) {
-      Alert.alert("User data not found.");
-      return;
-    }
-
-    const userData = userSnapshot.data();
-    const newMember = {
-      email: userData?.email || "",
-      fullName: userData?.fullName || "",
-      role: userData?.role || "member",
-      userId: requestId,
-    };
-
-    // Fetch teacher's data
-    const teacherSnapshot = await getDoc(doc(db, "users", userId)); // `userId` is the teacher's ID
-    if (!teacherSnapshot.exists()) {
-      Alert.alert("Teacher data not found.");
-      return;
-    }
-
-    const teacherData = teacherSnapshot.data();
-    const teacherObject = {
-      teacherId: userId,
-      teacherName: teacherData?.fullName || "",
-      teacherEmail: teacherData?.email || "",
-    };
-
-    // Update teacher's network (add member and remove request)
-    const teacherDocRef = doc(db, "teacherNetworks", userId);
-    await updateDoc(teacherDocRef, {
-      members: arrayUnion(newMember),
-      requests: arrayRemove({
-        email: userData?.email || "",
-        fullName: userData?.fullName || "",
-        role: userData?.role || "member",
-        userId: requestId,
-      }),
-    });
-
-    // Add the teacher object to the user's document
-    const userDocRef = doc(db, "users", requestId);
-    await updateDoc(userDocRef, {
-      teacher: teacherObject, // Add the teacher details
-    });
-
-    Alert.alert("User approved successfully.");
-    fetchTeacherRequests();
-  } catch (error) {
-    console.error("Error approving request", error);
-    Alert.alert("Failed to approve request.");
-  }
-};
-
-
-  /** Reject user request */
-  const rejectRequest = async (requestId) => {
+  const approveRequest = async (requestId) => {
     try {
-      // Fetch the user's data to construct the object
       const userSnapshot = await getDoc(doc(db, "users", requestId));
-  
       if (!userSnapshot.exists()) {
         Alert.alert("User data not found.");
         return;
       }
-  
+      
+      const userData = userSnapshot.data();
+      console.log("userData", userData);
+      const newMember = {
+        userId: requestId,
+        fullName: userData?.fullName || "",
+        email: userData?.email || "",
+        role: userData?.role || "member",
+        phone: userData?.phone || "",
+        courses: userData?.courses || [],
+        profession: userData?.profession || "",
+        upgradeSessionDone: userData?.upgradeSessionDone || false,
+      };
+
+      const teacherSnapshot = await getDoc(doc(db, "users", userId));
+      if (!teacherSnapshot.exists()) {
+        Alert.alert("Teacher data not found.");
+        return;
+      }
+
+      const teacherData = teacherSnapshot.data();
+      const teacherObject = {
+        teacherId: userId,
+        teacherName: teacherData?.fullName || "",
+        teacherEmail: teacherData?.email || "",
+      };
+
+      const teacherDocRef = doc(db, "teacherNetworks", userId);
+      await updateDoc(teacherDocRef, {
+        members: arrayUnion(newMember),
+        requests: arrayRemove({
+          userId: requestId,
+          fullName: userData?.fullName || "",
+          email: userData?.email || "",
+          role: userData?.role || "member",
+          phone: userData?.phone || "",
+          courses: userData?.courses || [],
+          profession: userData?.profession || "",
+          upgradeSessionDone: userData?.upgradeSessionDone || false,
+        }),
+      });
+
+      await updateDoc(doc(db, "users", requestId), {
+        teacher: teacherObject,
+      });
+
+      Alert.alert("User approved successfully.");
+      fetchTeacherRequests();
+    } catch (error) {
+      console.error("Error approving request", error);
+      Alert.alert("Failed to approve request.");
+    }
+  };
+
+  const rejectRequest = async (requestId) => {
+    try {
+      const userSnapshot = await getDoc(doc(db, "users", requestId));
+      if (!userSnapshot.exists()) {
+        Alert.alert("User data not found.");
+        return;
+      }
+
       const userData = userSnapshot.data();
       const requestToRemove = {
-        email: userData?.email || "",
-        name: userData?.fullName || "",
         userId: requestId,
-      }; 
-  
-      // Reference the teacher's network document
+        fullName: userData?.fullName || "",
+        email: userData?.email || "",
+        role: userData?.role || "member",
+        phone: userData?.phone || "",
+        courses: userData?.courses || [],
+        profession: userData?.profession || "",
+        upgradeSessionDone: userData?.upgradeSessionDone || false,
+      };
+
       const teacherDocRef = doc(db, "teacherNetworks", userId);
-  
-      // Remove the request object
       await updateDoc(teacherDocRef, {
         requests: arrayRemove(requestToRemove),
       });
-  
+
       Alert.alert("User rejected successfully.");
       fetchTeacherRequests();
     } catch (error) {
@@ -208,12 +220,11 @@ const approveRequest = async (requestId) => {
     }
   };
 
-  /** Render teacher pending requests */
   const renderRequestCard = ({ item }) => {
     return (
       <View style={styles.requestCard}>
         <View style={styles.textContainer}>
-          <Text style={styles.nameText}>{item?.name || "Unknown"}</Text>
+          <Text style={styles.nameText}>{item?.fullName || "Unknown"}</Text>
           <Text style={styles.emailText}>{item?.email || "Unknown"}</Text>
         </View>
         <View style={styles.iconContainer}>
@@ -235,12 +246,10 @@ const approveRequest = async (requestId) => {
       </View>
     );
   };
-  
 
-  /** Render UI based on roles */
   if (userRole === "teacher") {
     return (
-      <View style={styles.container}>       
+      <View style={styles.container}>
         {requests.length === 0 ? (
           <Text style={styles.noRequests}>No pending requests.</Text>
         ) : (
@@ -257,7 +266,9 @@ const approveRequest = async (requestId) => {
   if (userRole === "member" || userRole === "volunteer") {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>Enter Teacher Unique Code to Join Network</Text>
+        <Text style={styles.title}>
+          Enter Teacher Unique Code to Join Network
+        </Text>
         <TextInput
           style={styles.input}
           placeholder="Enter teacher unique code"
@@ -298,32 +309,29 @@ const styles = StyleSheet.create({
     color: "gray",
   },
   requestCard: {
-    flexDirection: "row", // Align text and icons in a row
+    flexDirection: "row",
     padding: 10,
     marginBottom: 10,
     borderWidth: 1,
     borderRadius: 8,
     borderColor: "lightgray",
-    alignItems: "center", // Center align items vertically
+    alignItems: "center",
   },
   textContainer: {
-    flex: 1, // Take up remaining space to push icons to the right
+    flex: 1,
   },
   nameText: {
     fontSize: 16,
-    fontWeight: "bold", // Bold for the name
+    fontWeight: "bold",
   },
   emailText: {
-    fontSize: 12, // Smaller font size for email
-    color: "gray", // Optional: Make email text gray
+    fontSize: 12,
+    color: "gray",
   },
   iconContainer: {
-    flexDirection: "row", // Place icons in a row
+    flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-  icon: {
-    marginHorizontal: 5, // Add spacing between icons
   },
   icon: {
     marginHorizontal: 10,

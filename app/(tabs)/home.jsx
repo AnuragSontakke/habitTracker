@@ -132,7 +132,6 @@ export default function Home() {
       setIsLoading(false);
     }
   };
-
   return (
     <View style={{ flex: 1 }}>
       {/* Fixed Header */}
@@ -162,21 +161,33 @@ export default function Home() {
       )}
       <Modal visible={showPhoneModal} position="center" showCloseIcon={false}>
         <PhoneVerification
-          onVerified={async (phone) => {
-            // Update Firestore with phoneVerified status
+          onVerified={async ({
+            phone,
+            age,
+            profession,
+            upgradeDone,
+            coursesDone,
+          }) => {
             const userRef = doc(db, "users", user.id);
+
             await setDoc(
               userRef,
-              { phoneVerified: true, phone },
+              {
+                phoneVerified: true,
+                phone,
+                age,
+                profession,
+                upgradeSessionDone: upgradeDone,
+                courses: coursesDone, // This is an object like { DSN: true, YesPlus: false, ... }
+              },
               { merge: true }
             );
+
             setShowPhoneModal(false);
           }}
         />
       </Modal>
-      {user && (
-        <LevelWithAnimation coinCount={coinCount} />
-      )}
+      {user && <LevelWithAnimation coinCount={coinCount} />}
     </View>
   );
 }

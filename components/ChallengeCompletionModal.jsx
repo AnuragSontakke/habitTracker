@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useMemo } from "react";
 import {
   View,
   Modal,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   BackHandler,
+  TouchableWithoutFeedback,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import LottieView from "lottie-react-native";
@@ -19,6 +20,7 @@ const ChallengeCompletionModal = ({
   challengeName,
   streak,
   coinsEarned,
+  message,
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(300)).current;
@@ -43,11 +45,13 @@ const ChallengeCompletionModal = ({
         "hardwareBackPress",
         () => {
           onClose();
-          return true;
+          return true; // Prevent default back action
         }
       );
 
-      return () => backHandler.remove();
+      return () => {
+        backHandler.remove();
+      };
     } else {
       Animated.parallel([
         Animated.timing(fadeAnim, {
@@ -61,27 +65,37 @@ const ChallengeCompletionModal = ({
         }),
       ]).start();
     }
-  }, [visible]);
+  }, [visible, onClose]);
 
-  const getStreakMessage = (streak, challengeName, coinsEarned) => {
+  const getStreakMessage = (streak, challengeName, coinsEarned, customMessage) => {
+    if (customMessage) {
+      return customMessage;
+    }
     if (streak === 1) {
-      // Select a random message from the firstStreakMessages for streak = 1
-      const randomIndex = Math.floor(
-        Math.random() * firstStreakMessages.length
-      );
+      const randomIndex = Math.floor(Math.random() * firstStreakMessages.length);
       return firstStreakMessages[randomIndex]
-        .replace("{challengeName}", challengeName)
-        .replace("{coinsEarned}", coinsEarned);
-    } else {
-      // Select a random message from motivationalMessages for streak > 1
+        .replace("{challengeName}", challengeName || "Challenge")
+        .replace("{coinsEarned}", coinsEarned || 0);
+    } else if (streak > 1) {
       const randomIndex = Math.floor(
         Math.random() * motivationalMessages.length
       );
       return motivationalMessages[randomIndex]
-        .replace("{challengeName}", challengeName)
-        .replace("{streak}", streak)
-        .replace("{coinsEarned}", coinsEarned);
+        .replace("{challengeName}", challengeName || "Challenge")
+        .replace("{streak}", streak || 0)
+        .replace("{coinsEarned}", coinsEarned || 0);
     }
+    return "Keep going with your challenges!";
+  };
+
+  const streakMessage = useMemo(
+    () => getStreakMessage(streak, challengeName, coinsEarned, message),
+    [streak, challengeName, coinsEarned, message, visible]
+  );
+
+  // Handler for outside click
+  const handleOutsidePress = () => {
+    onClose();
   };
 
   return (
@@ -91,37 +105,39 @@ const ChallengeCompletionModal = ({
       visible={visible}
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <Animated.View
-          style={[
-            styles.modalContainer,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          {/* Close Button */}
-          <TouchableOpacity style={styles.closeIcon} onPress={onClose}>
-            <Ionicons name="close-circle" size={40} color={Colors.PRIMARY} />
-          </TouchableOpacity>
+      <TouchableWithoutFeedback onPress={handleOutsidePress}>
+        <View style={styles.overlay}>
+          <TouchableWithoutFeedback>
+            <Animated.View
+              style={[
+                styles.modalContainer,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }],
+                },
+              ]}
+            >
+              {/* Close Button */}
+              <TouchableOpacity style={styles.closeIcon} onPress={onClose}>
+                <Ionicons name="close-circle" size={40} color={Colors.PRIMARY} />
+              </TouchableOpacity>
 
-          {/* Main Content */}
-          <View style={styles.mainContentContainer}>
-            {/* Tick Animation */}
-            <LottieView
-              source={require("../assets/lottie/tick.json")}
-              autoPlay
-              loop={true} // or true if you want
-              style={styles.lottieStyle}
-            />
+              {/* Main Content */}
+              <View style={styles.mainContentContainer}>
+                {/* Tick Animation */}
+                <LottieView
+                  source={require("../assets/lottie/tick.json")}
+                  autoPlay
+                  loop={true}
+                  style={styles.lottieStyle}
+                />
 
-            <Text style={styles.congratulationText}>
-              {getStreakMessage(streak, challengeName, coinsEarned)}
-            </Text>
-          </View>
-        </Animated.View>
-      </View>
+                <Text style={styles.congratulationText}>{streakMessage}</Text>
+              </View>
+            </Animated.View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 };

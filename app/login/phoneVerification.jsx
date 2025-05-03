@@ -162,63 +162,8 @@
 
 // export default PhoneVerification;
 
-
-
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-} from "react-native";
-import { Colors } from "../../constants/Colors";
-
-const PhoneVerification = ({ onVerified }) => {
-  const [phone, setPhone] = useState("");
-
-  const isValidIndianNumber = (number) => {
-    const regex = /^[6-9]\d{9}$/;
-    return regex.test(number);
-  };
-
-  const handleVerify = () => {
-    if (!isValidIndianNumber(phone)) {
-      alert("Please enter a valid 10-digit Indian mobile number starting with 6-9.");
-      return;
-    }
-
-    // Simulate success without OTP
-    onVerified("+91" + phone);
-  };
-
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Phone Verification</Text>
-
-      <Text style={styles.label}>Enter your phone number</Text>
-      <View style={styles.inputContainer}>
-        <Text style={styles.prefix}>+91</Text>
-        <TextInput
-          placeholder="10-digit mobile number"
-          keyboardType="number-pad"
-          value={phone}
-          onChangeText={(text) => {
-            const cleaned = text.replace(/\D/g, "").slice(0, 10);
-            setPhone(cleaned);
-          }}
-          style={styles.phoneInput}
-          maxLength={10}
-        />
-      </View>
-
-      <TouchableOpacity style={styles.button} onPress={handleVerify}>
-        <Text style={styles.buttonText}>Continue</Text>
-      </TouchableOpacity>
-
-      {/* OTP CODE COMMENTED BELOW */}
-
-      {/*
+{
+  /*
       <FirebaseRecaptchaVerifierModal
         ref={recaptchaVerifier}
         firebaseConfig={auth.app.options}
@@ -249,7 +194,119 @@ const PhoneVerification = ({ onVerified }) => {
           console.error(err);
         }
       };
-      */}
+      */
+}
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Switch,
+} from "react-native";
+import { Colors } from "../../constants/Colors";
+
+const PhoneVerification = ({ onVerified }) => {
+  const [phone, setPhone] = useState("");
+  const [age, setAge] = useState("");
+  const [profession, setProfession] = useState("");
+  const [upgradeDone, setUpgradeDone] = useState(false);
+  const [courses, setCourses] = useState({
+    DSN: false,
+    Sahaj: false,
+    Advance: false,
+    YesPlus: false,
+  });
+
+  const isValidIndianNumber = (number) => /^[6-9]\d{9}$/.test(number);
+
+  const handleVerify = () => {
+    if (!isValidIndianNumber(phone)) {
+      alert(
+        "Please enter a valid 10-digit Indian mobile number starting with 6-9."
+      );
+      return;
+    }
+
+    // Simulate success without OTP
+    onVerified({
+      phone: "+91" + phone,
+      age,
+      profession,
+      upgradeDone,
+      coursesDone: Object.keys(courses).filter((key) => courses[key]),
+    });
+  };
+
+  const toggleCourse = (courseName) => {
+    setCourses((prev) => ({
+      ...prev,
+      [courseName]: !prev[courseName],
+    }));
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Phone Verification</Text>
+
+      <Text style={styles.label}>Enter your phone number</Text>
+      <View style={styles.inputContainer}>
+        <Text style={styles.prefix}>+91</Text>
+        <TextInput
+          placeholder="10-digit mobile number"
+          keyboardType="number-pad"
+          value={phone}
+          onChangeText={(text) => {
+            const cleaned = text.replace(/\D/g, "").slice(0, 10);
+            setPhone(cleaned);
+          }}
+          style={styles.phoneInput}
+          maxLength={10}
+        />
+      </View>
+
+      <Text style={styles.label}>Age</Text>
+      <TextInput
+        placeholder="Enter your age"
+        keyboardType="number-pad"
+        value={age}
+        onChangeText={setAge}
+        style={styles.inputBox}
+      />
+
+      <Text style={styles.label}>Profession</Text>
+      <TextInput
+        placeholder="Enter your profession"
+        value={profession}
+        onChangeText={setProfession}
+        style={styles.inputBox}
+      />
+
+      <View style={styles.switchContainer}>
+        <Text style={styles.label}>Upgrade session done?</Text>
+        <Switch
+          value={upgradeDone}
+          onValueChange={setUpgradeDone}
+          thumbColor={upgradeDone ? Colors.PRIMARY : "#ccc"}
+        />
+      </View>
+
+      <Text style={styles.label}>Courses Done</Text>
+      {["DSN", "Sahaj", "Advance", "YesPlus"].map((course) => (
+        <View key={course} style={styles.switchContainer}>
+          <Text style={styles.courseLabel}>{course}</Text>
+          <Switch
+            value={courses[course]}
+            onValueChange={() => toggleCourse(course)}
+            thumbColor={courses[course] ? Colors.PRIMARY : "#ccc"}
+          />
+        </View>
+      ))}
+
+      <TouchableOpacity style={styles.button} onPress={handleVerify}>
+        <Text style={styles.buttonText}>Continue</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -273,6 +330,11 @@ const styles = StyleSheet.create({
     fontFamily: "outfit-medium",
     color: Colors.PRIMARY_DARK,
   },
+  courseLabel: {
+    fontSize: 16,
+    fontFamily: "outfit-medium",
+    color: Colors.PRIMARY_DARK,
+  },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -280,7 +342,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.PRIMARY,
     borderRadius: 8,
     paddingHorizontal: 12,
-    marginBottom: 20,
+    marginBottom: 16,
     backgroundColor: Colors.PRIMARY_LIGHT + "20",
   },
   prefix: {
@@ -294,6 +356,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "outfit-medium",
     color: "#000",
+  },
+  inputBox: {
+    borderWidth: 1.5,
+    borderColor: Colors.PRIMARY,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 16,
+    fontFamily: "outfit-medium",
+    color: "#000",
+    backgroundColor: Colors.PRIMARY_LIGHT + "20",
+  },
+  switchContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
   },
   button: {
     backgroundColor: Colors.PRIMARY,

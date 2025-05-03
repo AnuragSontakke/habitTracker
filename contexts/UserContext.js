@@ -14,6 +14,10 @@ export const UserProvider = ({ children }) => {
   const [userName, setUserName] = useState(null); // Stores user name
   const [userImage, setUserImage] = useState(null); // Stores user image
   const [userTeacher, setUserTeacher] = useState(null); // Stores teacher data
+  const [userPhone, setUserPhone] = useState(null); // Stores user phone
+  const [userCourses, setUserCourses] = useState(null); // Stores user courses
+  const [userProfession, setUserProfession] = useState(null); // Stores user profession
+  const [userUpgradeSessionDone, setUserUpgradeSessionDone] = useState(false); // Stores upgrade session status
   const [loading, setLoading] = useState(true); // Loading state
   const { user } = useUser(); // Get the current user from Clerk
 
@@ -39,6 +43,11 @@ export const UserProvider = ({ children }) => {
 
       if (userDoc.exists()) {
         const data = userDoc.data();
+        console.log("user", data.phone, data.profession, data.courses, data.upgradeSessionDone);
+        setUserUpgradeSessionDone(data.upgradeSessionDone || false);
+        setUserPhone(data.phone);
+        setUserCourses(data.courses);
+        setUserProfession(data.profession);
         setUserRole(data.role);
         setUserTeacher(data.teacher || null);
       } else {
@@ -60,10 +69,21 @@ export const UserProvider = ({ children }) => {
     setUserTeacher(null);
     setLoading(false);
   };
-
   return (
     <UserContext.Provider
-      value={{ userRole, loading, userId, userEmail, userName, userImage, userTeacher }}
+      value={{
+        userRole,
+        loading,
+        userId,
+        userEmail,
+        userName,
+        userImage,
+        userTeacher,
+        userPhone,
+        userCourses,
+        userProfession,
+        userUpgradeSessionDone
+      }}
     >
       {children}
     </UserContext.Provider>

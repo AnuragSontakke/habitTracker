@@ -18,6 +18,8 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import * as ImagePicker from "expo-image-picker";
 import { useUserContext } from "../../contexts/UserContext";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImageManipulator from 'expo-image-manipulator';
+
 
 export default function CreateEventForm() {
   const { userId } = useUserContext();
@@ -62,30 +64,74 @@ export default function CreateEventForm() {
       if (!result.canceled) {
         const { uri } = result.assets[0];
         setImageUri(uri);
-        uploadImageToFirebase(uri);
+        uploadImageToCloudinary(uri);
       }
     } catch (error) {
       ToastAndroid.show("Image selection failed", ToastAndroid.LONG);
     }
   };
 
-  const uploadImageToFirebase = async (uri) => {
+  // const uploadImageToFirebase = async (uri) => {
+  //   try {
+  //     setLoading(true);
+  //     const res = await fetch(uri);
+  //     const blob = await res.blob();
+  //     const fileName = Date.now().toString() + ".jpg";
+  //     const imageRef = ref(storage, "eventImages/" + fileName);
+  //     await uploadBytes(imageRef, blob);
+  //     const downloadUrl = await getDownloadURL(imageRef);
+  //     setEvent((prev) => ({ ...prev, eventImage: downloadUrl }));
+  //     ToastAndroid.show("Image uploaded successfully!", ToastAndroid.SHORT);
+  //   } catch (error) {
+  //     ToastAndroid.show("Upload failed", ToastAndroid.LONG);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+  const uploadImageToCloudinary = async (uri) => {
     try {
       setLoading(true);
-      const res = await fetch(uri);
-      const blob = await res.blob();
-      const fileName = Date.now().toString() + ".jpg";
-      const imageRef = ref(storage, "eventImages/" + fileName);
-      await uploadBytes(imageRef, blob);
-      const downloadUrl = await getDownloadURL(imageRef);
-      setEvent((prev) => ({ ...prev, eventImage: downloadUrl }));
-      ToastAndroid.show("Image uploaded successfully!", ToastAndroid.SHORT);
+  
+      // Compress and resize image before upload
+      const manipulatedImage = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 800 } }], // Resize to 800px width (adjust as needed)
+        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG } // 70% quality
+      );
+  
+      const formData = new FormData();
+      formData.append("file", {
+        uri: manipulatedImage.uri,
+        type: "image/jpeg",
+        name: "upload.jpg",
+      });
+      formData.append("upload_preset", "habitTracker");
+  
+      const res = await fetch(
+        `https://api.cloudinary.com/v1_1/${process.env.EXPO_PUBLIC_CLOUDINARY_CLOUDNAME}/image/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+  
+      const data = await res.json();
+      if (data.secure_url) {
+        setEvent((prev) => ({ ...prev, eventImage: data.secure_url }));
+        ToastAndroid.show("Image uploaded successfully!", ToastAndroid.SHORT);
+      } else {
+        throw new Error("Upload failed");
+      }
     } catch (error) {
-      ToastAndroid.show("Upload failed", ToastAndroid.LONG);
+      console.error("Cloudinary upload error:", error);
+      ToastAndroid.show("Cloudinary upload failed", ToastAndroid.LONG);
     } finally {
       setLoading(false);
     }
   };
+  
+  
 
   const handleSubmit = async () => {
     const eventData = {

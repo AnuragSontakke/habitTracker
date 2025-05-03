@@ -5,7 +5,6 @@ import {
   FlatList,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   TouchableOpacity,
   Image,
   SafeAreaView,
@@ -58,6 +57,15 @@ export default function Challenges() {
   const [elapsed, setElapsed] = useState(0);
   const [meditationProgress, setMeditationProgress] = useState(0);
   const playerRef = useRef();
+
+  // State for ChallengeCompletionModal
+  const [completionModal, setCompletionModal] = useState({
+    visible: false,
+    challengeName: "",
+    streak: 0,
+    coinsEarned: 0,
+    message: "",
+  });
 
   // Cleanup audio on component unmount
   useEffect(() => {
@@ -155,10 +163,10 @@ export default function Challenges() {
       querySnapshot.forEach((doc) => {
         sliders.push(doc.data());
       });
-  
+
       // Shuffle the array
       const shuffledSliders = sliders.sort(() => Math.random() - 0.5);
-  
+
       setMeditationList(shuffledSliders);
     } catch (err) {
       console.error("Error fetching slider data:", err);
@@ -167,7 +175,6 @@ export default function Challenges() {
       setMeditationLoading(false);
     }
   };
-  
 
   useEffect(() => {
     getMeditationList();
@@ -182,7 +189,13 @@ export default function Challenges() {
 
   const handleRandomMeditation = () => {
     if (meditationList.length === 0) {
-      Alert.alert("Error", "No meditations available.");
+      setCompletionModal({
+        visible: true,
+        challengeName: "Meditation",
+        streak: 0,
+        coinsEarned: 0,
+        message: "No meditations available.",
+      });
       return;
     }
     const randomIndex = Math.floor(Math.random() * meditationList.length);
@@ -293,7 +306,6 @@ export default function Challenges() {
   }
 
   const handleChallengeCompletion = async (challengeId) => {
-    console.log("challengeId",challengeId)
     try {
       const today = new Date();
       const weekNumber = getWeekNumber(today);
@@ -313,10 +325,15 @@ export default function Challenges() {
       );
 
       if (completedToday) {
-        Alert.alert(
-          "Already Marked",
-          "This challenge is already marked as completed for today."
-        );
+        setCompletionModal({
+          visible: true,
+          challengeName:
+            challenges.find((c) => c.challengeId === challengeId)
+              ?.challengeName || "Challenge",
+          streak: challenge.streak,
+          coinsEarned: 0,
+          message: "This challenge is already marked as completed for today.",
+        });
         return;
       }
 
@@ -393,13 +410,22 @@ export default function Challenges() {
 
       await setDoc(coinsRef, { coins: userCoins }, { merge: true });
 
-      Alert.alert(
-        "Challenge Completed!",
-        `Streak: ${challenge.streak} days. Coins Earned: ${coinsEarned}.`
-      );
+      setCompletionModal({
+        visible: true,
+        challengeName: challengeData?.challengeName || "Challenge",
+        streak: challenge.streak,
+        coinsEarned,
+        message: "",
+      });
     } catch (error) {
       console.error("Error updating challenge completion:", error);
-      Alert.alert("Error", "Failed to update challenge completion.");
+      setCompletionModal({
+        visible: true,
+        challengeName: "Challenge",
+        streak: 0,
+        coinsEarned: 0,
+        message: "Failed to update challenge completion.",
+      });
     }
   };
 
@@ -444,7 +470,13 @@ export default function Challenges() {
 
     const handleStartAudio = () => {
       if (!audioUri) {
-        Alert.alert("Error", "No audio available for this challenge.");
+        setCompletionModal({
+          visible: true,
+          challengeName: item.challengeName,
+          streak: 0,
+          coinsEarned: 0,
+          message: "No audio available for this challenge.",
+        });
         return;
       }
       setAudioUri(audioUri);
@@ -461,38 +493,59 @@ export default function Challenges() {
       const month = new Date(date).toLocaleString("default", {
         month: "short",
       });
-
+    
       const isNewMonth =
         index === 0 ||
         new Date(date).getMonth() !== new Date(allDays[index - 1]).getMonth();
-
+    
+      // Check: is it the last date item?
+      const isLastItem = index === allDays.length - 1;
+    
       return (
         <View style={styles.dateCircle}>
-          <View
-            style={[
-              styles.circle,
-              {
-                backgroundColor: completed ? Colors.PRIMARY : "white",
-                borderColor: completed ? "transparent" : Colors.PRIMARY,
-                borderWidth: completed ? 0 : 2,
-              },
-            ]}
-          >
-            <Text
+          {isLastItem && userChallenge?.streak > 0 ? (
+            // 👉 Show Fire badge for last item if streak active
+            <View style={styles.fireCircle}>
+              <Image
+                source={require('../../assets/images/fire.png')}
+                style={styles.fireImage}
+                resizeMode="contain"
+              />
+              <View style={styles.streakBadge}>
+                <Text style={styles.streakBadgeText}>
+                  {userChallenge?.streak}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            // 👉 Otherwise normal date circle
+            <View
               style={[
-                styles.dateTextInside,
+                styles.circle,
                 {
-                  color: completed ? "white" : Colors.PRIMARY,
+                  backgroundColor: completed ? Colors.PRIMARY : "white",
+                  borderColor: completed ? "transparent" : Colors.PRIMARY,
+                  borderWidth: completed ? 0 : 2,
                 },
               ]}
             >
-              {day}
-            </Text>
-          </View>
+              <Text
+                style={[
+                  styles.dateTextInside,
+                  {
+                    color: completed ? "white" : Colors.PRIMARY,
+                  },
+                ]}
+              >
+                {day}
+              </Text>
+            </View>
+          )}
           {isNewMonth && <Text style={styles.monthArrow}>↑ {month}</Text>}
         </View>
       );
     };
+    
 
     return (
       <View style={styles.challengeItem}>
@@ -538,10 +591,26 @@ export default function Challenges() {
           )
         ) : (
           <View style={styles.progressContainer}>
-            <Text style={styles.challengeName}>
-              {item.challengeName} Streak: {userChallenge?.streak || 0}{" "}
-              {userChallenge?.streak > 5 ? "🔥" : ""}
-            </Text>
+            <View style={styles.rowBetween}>
+              <Text style={styles.challengeName}>{item.challengeName}</Text>
+              {/* <View style={styles.fireBadgeContainer}>
+                <View style={styles.fireCircle}>
+                  <Image
+                    source={require("../../assets/images/fire.png")}
+                    style={styles.fireImage}
+                    resizeMode="contain"
+                  />
+                  {userChallenge?.streak > 0 && (
+                    <View style={styles.streakBadge}>
+                      <Text style={styles.streakBadgeText}>
+                        {userChallenge.streak}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View> */}
+            </View>
+
             <FlatList
               data={allDays}
               keyExtractor={(item) => item}
@@ -573,8 +642,12 @@ export default function Challenges() {
     setMeditationModalVisible(false);
     setSelectedVideoId(null);
     setSelectedMeditation(null);
-    setMeditationProgressUpdated(false); // Reset progress tracking
+    setMeditationProgressUpdated(false);
     setMeditationProgress(0);
+  };
+
+  const handleCompletionModalClose = () => {
+    setCompletionModal((prev) => ({ ...prev, visible: false }));
   };
 
   return (
@@ -738,21 +811,30 @@ export default function Challenges() {
                 )}
               />
             )}
-            
           </ScrollView>
-          {!selectedVideoId && <TouchableOpacity
-            style={styles.randomButton}
-            onPress={handleRandomMeditation}
-            accessibilityLabel="Choose Random Meditation"
-            accessibilityRole="button"
-          >
-            <Text style={styles.randomButtonText}>
-              Choose Random Meditation
-            </Text>
-          </TouchableOpacity>}
+          {!selectedVideoId && (
+            <TouchableOpacity
+              style={styles.randomButton}
+              onPress={handleRandomMeditation}
+              accessibilityLabel="Choose Random Meditation"
+              accessibilityRole="button"
+            >
+              <Text style={styles.randomButtonText}>
+                Choose Random Meditation
+              </Text>
+            </TouchableOpacity>
+          )}
         </SafeAreaView>
       </Modal>
-      <ChallengeCompletionModal visible={true} challengeName="Mediation" streak="2" coinsEarned={3} />
+
+      <ChallengeCompletionModal
+        visible={completionModal.visible}
+        onClose={handleCompletionModalClose}
+        challengeName={completionModal.challengeName}
+        streak={completionModal.streak}
+        coinsEarned={completionModal.coinsEarned}
+        message={completionModal.message}
+      />
     </View>
   );
 }
@@ -876,12 +958,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     flex: 1,
   },
-  streakText: {
-    fontSize: 14,
-    color: Colors.PRIMARY_DARK,
-    marginBottom: 6,
-    fontFamily: "outfit-medium",
-  },
+
   monthArrow: {
     fontSize: 12,
     fontWeight: "600",
@@ -922,7 +999,7 @@ const styles = StyleSheet.create({
     transform: [{ translateX: -25 }, { translateY: -25 }],
   },
   meditationModal: {
-    height: Dimensions.get("window").height * 0.7, // Fixed height (70% of screen height)
+    height: Dimensions.get("window").height * 0.7,
     justifyContent: "space-between",
   },
   meditationModalContainer: {
@@ -945,5 +1022,55 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontFamily: "outfit-medium",
+  },
+  rowBetween: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  streakContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  fireImage: {
+    width: 20, // adjust size as you want
+    height: 20,
+    marginRight: 4,
+  },
+  fireBadgeContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fireCircle: {
+    width: 32, // Circle size
+    height: 32,
+    borderRadius: 25,
+    borderWidth: 2.5,
+    borderColor: "#FF6B00", // Orange/red border like fire
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  fireImage: {
+    width: 20,
+    height: 20,
+  },
+  streakBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#FF6B00", // Same fire color or different
+    width: 15,
+    height: 15,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "white", // To separate badge from background
+  },
+  streakBadgeText: {
+    color: "white",
+    fontSize: 8,
+    fontWeight: "bold",
   },
 });
