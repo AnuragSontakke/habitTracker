@@ -196,6 +196,8 @@
       };
       */
 }
+
+
 import React, { useState } from "react";
 import {
   View,
@@ -204,6 +206,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Switch,
+  Alert,
 } from "react-native";
 import { Colors } from "../../constants/Colors";
 
@@ -229,6 +232,21 @@ const PhoneVerification = ({ onVerified }) => {
       return;
     }
 
+    if (!age.trim()) {
+      Alert.alert("Missing Age", "Please enter your age.");
+      return;
+    }
+
+    if (!profession.trim()) {
+      Alert.alert("Missing Profession", "Please enter your profession.");
+      return;
+    }
+
+    if (!upgradeDone) {
+      Alert.alert("Upgrade Required", "Please confirm that the upgrade session is done.");
+      return;
+    }
+
     // Simulate success without OTP
     onVerified({
       phone: "+91" + phone,
@@ -248,7 +266,6 @@ const PhoneVerification = ({ onVerified }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Phone Verification</Text>
 
       <Text style={styles.label}>Enter your phone number</Text>
       <View style={styles.inputContainer}>
@@ -292,7 +309,7 @@ const PhoneVerification = ({ onVerified }) => {
         />
       </View>
 
-      <Text style={styles.label}>Courses Done</Text>
+      <Text style={styles.label}>Courses Completed</Text>
       {["DSN", "Sahaj", "Advance", "YesPlus"].map((course) => (
         <View key={course} style={styles.switchContainer}>
           <Text style={styles.courseLabel}>{course}</Text>
@@ -313,7 +330,7 @@ const PhoneVerification = ({ onVerified }) => {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 10,
+    padding: 20,
     backgroundColor: "#fff",
     borderRadius: 12,
   },

@@ -6,6 +6,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   RefreshControl,
+  Dimensions,
+  SafeAreaView,
 } from "react-native";
 import { useAuth, useUser } from "@clerk/clerk-expo";
 import { doc, setDoc, getDoc } from "firebase/firestore";
@@ -23,6 +25,7 @@ import PhoneVerification from "../login/phoneVerification";
 import { useCoinCount } from "../../hooks/useCoinCount"; // adjust path if needed
 import { LEVELS } from "../../constants/Levels";
 import LevelWithAnimation from "../../pages/Home/LabelWithAnimation";
+import TermsAndCondition from "../../pages/Home/TermsAndCondition";
 
 // Synchronous helper function to generate unique teacher codes
 const generateUniqueTeacherCode = () => {
@@ -92,6 +95,7 @@ export default function Home() {
   const { getToken } = useAuth();
   const { userTeacher, userId } = useUserContext();
   const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const coinCount = useCoinCount(userTeacher?.teacherId, userId);
   const getCurrentLevel = () => {
     // Find the highest level the user qualifies for
@@ -121,6 +125,10 @@ export default function Home() {
         setRole(userRole);
         const userRef = doc(db, "users", user.id);
         const userSnapshot = await getDoc(userRef);
+
+        if (!userSnapshot.exists() || !userSnapshot.data()?.termsAccepted) {
+          setShowTermsModal(true);
+        }
 
         if (!userSnapshot.exists() || !userSnapshot.data()?.phoneVerified) {
           setShowPhoneModal(true);
@@ -159,33 +167,79 @@ export default function Home() {
           <ActivityIndicator size="large" color="#007bff" />
         </View>
       )}
-      <Modal visible={showPhoneModal} position="center" showCloseIcon={false}>
-        <PhoneVerification
-          onVerified={async ({
-            phone,
-            age,
-            profession,
-            upgradeDone,
-            coursesDone,
-          }) => {
-            const userRef = doc(db, "users", user.id);
-
-            await setDoc(
-              userRef,
-              {
-                phoneVerified: true,
+      <Modal
+        style={styles.meditationModal}
+        visible={showPhoneModal}
+        position="center"
+        showCloseIcon={false}
+        title="User Details"
+      >
+        <SafeAreaView style={styles.meditationModalContainer}>
+          <ScrollView contentContainerStyle={styles.meditationScrollContent}>
+            <PhoneVerification
+              onVerified={async ({
                 phone,
                 age,
                 profession,
-                upgradeSessionDone: upgradeDone,
-                courses: coursesDone, // This is an object like { DSN: true, YesPlus: false, ... }
-              },
-              { merge: true }
-            );
+                upgradeDone,
+                coursesDone,
+              }) => {
+                const userRef = doc(db, "users", user.id);
 
-            setShowPhoneModal(false);
-          }}
-        />
+                await setDoc(
+                  userRef,
+                  {
+                    phoneVerified: true,
+                    phone,
+                    age,
+                    profession,
+                    upgradeSessionDone: upgradeDone,
+                    courses: coursesDone, // This is an object like { DSN: true, YesPlus: false, ... }
+                  },
+                  { merge: true }
+                );
+
+                setShowPhoneModal(false);
+              }}
+            />
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+      <Modal
+        style={styles.termsModal}
+        visible={showTermsModal}
+        position="center"
+        showCloseIcon={false}
+        title="Terms & Privacy Policy"
+      >
+        <SafeAreaView style={styles.meditationModalContainer}>
+          <ScrollView contentContainerStyle={styles.meditationScrollContent}>
+            <TermsAndCondition />
+            <View style={{ marginTop: 30 }}>
+              <Text
+                onPress={async () => {
+                  const userRef = doc(db, "users", user.id);
+                  await setDoc(
+                    userRef,
+                    { termsAccepted: true },
+                    { merge: true }
+                  );
+                  setShowTermsModal(false);
+                }}
+                style={{
+                  backgroundColor: "#007bff",
+                  color: "#fff",
+                  textAlign: "center",
+                  padding: 12,
+                  borderRadius: 8,
+                  fontWeight: "bold",
+                }}
+              >
+                I Agree
+              </Text>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
       </Modal>
       {user && <LevelWithAnimation coinCount={coinCount} />}
     </View>
@@ -225,5 +279,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#333",
+  },
+  meditationModal: {
+    height: Dimensions.get("window").height * 0.7,
+    justifyContent: "space-between",
+  },
+  meditationModalContainer: {
+    flex: 1,
+    padding: 20,
+  },
+  meditationScrollContent: {
+    paddingBottom: 20,
+  },
+  termsModal: {
+    height: Dimensions.get("window").height * 0.75,
+    justifyContent: "space-between",
   },
 });

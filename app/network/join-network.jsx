@@ -4,9 +4,11 @@ import {
   Text,
   StyleSheet,
   TextInput,
-  Button,
   Alert,
   FlatList,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import {
   collection,
@@ -36,7 +38,7 @@ export default function JoinNetwork() {
     userPhone,
     userCourses,
     userProfession,
-    userUpgradeSessionDone
+    userUpgradeSessionDone,
   } = useUserContext();
 
   const [teacherCode, setTeacherCode] = useState("");
@@ -44,7 +46,7 @@ export default function JoinNetwork() {
 
   useEffect(() => {
     navigation.setOptions({
-      headerTitle: userRole === "teacher" ? "Requests" : "Join Network",
+      headerTitle: userRole === "teacher" ? "Join Requests" : "Join Network",
       headerShown: true,
       headerStyle: {
         backgroundColor: Colors.PRIMARY,
@@ -133,9 +135,8 @@ export default function JoinNetwork() {
         Alert.alert("User data not found.");
         return;
       }
-      
+
       const userData = userSnapshot.data();
-      console.log("userData", userData);
       const newMember = {
         userId: requestId,
         fullName: userData?.fullName || "",
@@ -163,16 +164,7 @@ export default function JoinNetwork() {
       const teacherDocRef = doc(db, "teacherNetworks", userId);
       await updateDoc(teacherDocRef, {
         members: arrayUnion(newMember),
-        requests: arrayRemove({
-          userId: requestId,
-          fullName: userData?.fullName || "",
-          email: userData?.email || "",
-          role: userData?.role || "member",
-          phone: userData?.phone || "",
-          courses: userData?.courses || [],
-          profession: userData?.profession || "",
-          upgradeSessionDone: userData?.upgradeSessionDone || false,
-        }),
+        requests: arrayRemove(newMember),
       });
 
       await updateDoc(doc(db, "users", requestId), {
@@ -220,32 +212,29 @@ export default function JoinNetwork() {
     }
   };
 
-  const renderRequestCard = ({ item }) => {
-    return (
-      <View style={styles.requestCard}>
-        <View style={styles.textContainer}>
-          <Text style={styles.nameText}>{item?.fullName || "Unknown"}</Text>
-          <Text style={styles.emailText}>{item?.email || "Unknown"}</Text>
-        </View>
-        <View style={styles.iconContainer}>
-          <Ionicons
-            name="checkmark-circle-outline"
-            size={40}
-            color="green"
-            onPress={() => approveRequest(item?.userId)}
-            style={styles.icon}
-          />
-          <Ionicons
-            name="remove-circle-outline"
-            size={40}
-            color="red"
-            onPress={() => rejectRequest(item?.userId)}
-            style={styles.icon}
-          />
-        </View>
+  const renderRequestCard = ({ item }) => (
+    <View style={styles.card}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.cardName}>{item?.fullName}</Text>
+        <Text style={styles.cardEmail}>{item?.email}</Text>
       </View>
-    );
-  };
+      <View style={styles.cardIcons}>
+        <Ionicons
+          name="checkmark-circle-outline"
+          size={32}
+          color="green"
+          onPress={() => approveRequest(item?.userId)}
+        />
+        <Ionicons
+          name="close-circle-outline"
+          size={32}
+          color="red"
+          style={{ marginLeft: 10 }}
+          onPress={() => rejectRequest(item?.userId)}
+        />
+      </View>
+    </View>
+  );
 
   if (userRole === "teacher") {
     return (
@@ -257,6 +246,7 @@ export default function JoinNetwork() {
             data={requests}
             keyExtractor={(item) => item.userId}
             renderItem={renderRequestCard}
+            contentContainerStyle={{ paddingBottom: 20 }}
           />
         )}
       </View>
@@ -265,22 +255,28 @@ export default function JoinNetwork() {
 
   if (userRole === "member" || userRole === "volunteer") {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>
-          Enter Teacher Unique Code to Join Network
-        </Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.container}
+      >
+        <Text style={styles.title}>Enter Teacher Code to Join</Text>
         <TextInput
           style={styles.input}
-          placeholder="Enter teacher unique code"
+          placeholder="Teacher's unique code"
           value={teacherCode}
           onChangeText={setTeacherCode}
         />
-        <Button
-          title="Join Network"
+        <TouchableOpacity
+          style={[
+            styles.button,
+            { backgroundColor: teacherCode ? Colors.PRIMARY : "gray" },
+          ]}
           onPress={handleJoinNetwork}
           disabled={!teacherCode}
-        />
-      </View>
+        >
+          <Text style={styles.buttonText}>Send Request</Text>
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -295,51 +291,65 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
+    backgroundColor: "#F9F9F9",
   },
   title: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 10,
-  },
-  noRequests: {
-    color: "gray",
-    marginTop: 10,
-  },
-  noRole: {
-    color: "gray",
-  },
-  requestCard: {
-    flexDirection: "row",
-    padding: 10,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderRadius: 8,
-    borderColor: "lightgray",
-    alignItems: "center",
-  },
-  textContainer: {
-    flex: 1,
-  },
-  nameText: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  emailText: {
-    fontSize: 12,
-    color: "gray",
-  },
-  iconContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  icon: {
-    marginHorizontal: 10,
+    fontSize: 22,
+    fontWeight: "600",
+    marginBottom: 16,
   },
   input: {
     borderWidth: 1,
-    padding: 8,
-    marginBottom: 10,
-    borderRadius: 4,
+    borderColor: "#ccc",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    backgroundColor: "#fff",
+  },
+  button: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  noRequests: {
+    textAlign: "center",
+    color: "gray",
+    fontSize: 16,
+    marginTop: 40,
+  },
+  noRole: {
+    textAlign: "center",
+    color: "gray",
+    fontSize: 16,
+  },
+  card: {
+    flexDirection: "row",
+    padding: 15,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  cardName: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  cardEmail: {
+    fontSize: 13,
+    color: "gray",
+  },
+  cardIcons: {
+    flexDirection: "row",
+    alignItems: "center",
   },
 });

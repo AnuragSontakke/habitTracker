@@ -8,7 +8,9 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  Image, // Import Image component
+  Image,
+  Animated,
+  Easing,
 } from "react-native";
 import { db } from "../../configs/FirebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
@@ -23,8 +25,9 @@ export default function Leaderboard() {
   const [loading, setLoading] = useState(true);
   const [currentWeekKey, setCurrentWeekKey] = useState("");
   const { userTeacher, userRole, userId } = useUserContext();
-  const screenWidth = Dimensions.get("window").width; // Get screen width
-  const [isContentVisible, setIsContentVisible] = useState(true);
+  const screenWidth = Dimensions.get("window").width;
+  const [isContentVisible, setIsContentVisible] = useState(false);
+  const animationValue = useState(new Animated.Value(0))[0];
 
   // Calculate the current week key
   useEffect(() => {
@@ -34,6 +37,29 @@ export default function Leaderboard() {
     setCurrentWeekKey(`week${weekNumber}year${year}`);
   }, []);
 
+  const toggleVisibility = () => {
+    const toValue = isContentVisible ? 0 : 1;
+    Animated.timing(animationValue, {
+      toValue,
+      duration: 300,
+      easing: Easing.inOut(Easing.quad),
+      useNativeDriver: false,
+    }).start();
+    setIsContentVisible(!isContentVisible);
+  };
+
+  const interpolatedHeight = animationValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 260],
+    extrapolate: "clamp",
+  });
+
+  const interpolatedOpacity = animationValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+    extrapolate: "clamp",
+  });
+
   useEffect(() => {
     fetchLeaderboardData();
   }, [activeTab, currentWeekKey]);
@@ -42,8 +68,7 @@ export default function Leaderboard() {
     setLoading(true);
     try {
       const teacherId = userRole === "teacher" ? userId : userTeacher.teacherId;
-
-      const coinsRef = doc(db, "coin", teacherId); // Replace with dynamic teacherId
+      const coinsRef = doc(db, "coin", teacherId);
       const coinsSnap = await getDoc(coinsRef);
 
       if (!coinsSnap.exists()) {
@@ -53,10 +78,8 @@ export default function Leaderboard() {
       }
 
       const coins = coinsSnap.data().coins || [];
-
       let data = [];
       if (activeTab === "Weekly") {
-        // Filter weekly data
         data = coins
           .map((coin) => {
             const weeklyData = coin.weekly[currentWeekKey] || {};
@@ -68,9 +91,8 @@ export default function Leaderboard() {
               streak: weeklyData.streak || 0,
             };
           })
-          .sort((a, b) => b.coins - a.coins); // Sort by coins
+          .sort((a, b) => b.coins - a.coins);
       } else {
-        // All-Time data
         data = coins
           .map((coin) => ({
             userName: coin.userName,
@@ -79,7 +101,7 @@ export default function Leaderboard() {
             coins: coin.allTime.coins || 0,
             streak: coin.allTime.streak || 0,
           }))
-          .sort((a, b) => b.coins - a.coins); // Sort by coins
+          .sort((a, b) => b.coins - a.coins);
       }
 
       setLeaderboardData(data);
@@ -92,25 +114,23 @@ export default function Leaderboard() {
   };
 
   const renderLeaderboardItem = ({ item, index }) => {
-    // Determine the medal image based on rank
     let medalImage = null;
     if (index === 0) {
-      medalImage = require("../../assets/images/gold-medal.png"); // Gold medal for rank 1
+      medalImage = require("../../assets/images/gold-medal.png");
     } else if (index === 1) {
-      medalImage = require("../../assets/images/silver-medal.png"); // Silver medal for rank 2
+      medalImage = require("../../assets/images/silver-medal.png");
     } else if (index === 2) {
-      medalImage = require("../../assets/images/bronze-medal.png"); // Bronze medal for rank 3
+      medalImage = require("../../assets/images/bronze-medal.png");
     }
 
     return (
       <View style={styles.leaderboardItem}>
         <View style={styles.userDetails}>
           <View style={styles.userInfo}>
-            {/* User Image */}
             <Image
               source={{
                 uri: item.userImage || "https://via.placeholder.com/150",
-              }} // Fallback image if no image is available
+              }}
               style={styles.userImage}
             />
             <View style={{ display: "flex", flexDirection: "column" }}>
@@ -127,12 +147,11 @@ export default function Leaderboard() {
             </View>
           </View>
         </View>
-
-        {/* Show medal for top 3 */}
         {medalImage && <Image source={medalImage} style={styles.medalImage} />}
       </View>
     );
   };
+
   const renderTopUsers = () => {
     const topUsers = leaderboardData.slice(0, 3);
 
@@ -150,21 +169,24 @@ export default function Leaderboard() {
             style={styles.confettiAnimation}
           />
         </View>
-
-        {/* First User (Center - Rank 1) */}
         {topUsers[0] && (
           <View style={styles.topUserItemCenter}>
-            <Image
-              source={{
-                uri: topUsers[0].userImage || "https://via.placeholder.com/150",
-              }}
-              style={styles.topUserImageCenter}
-            />
+            <View style={styles.profileContainer}>
+              <Image
+                source={require("../../assets/images/crown.png")} // Replace with your actual crown image path
+                style={styles.crownImage}
+              />
+              <Image
+                source={{
+                  uri:
+                    topUsers[0].userImage || "https://via.placeholder.com/150",
+                }}
+                style={styles.topUserImageCenter}
+              />
+            </View>
             <Text style={styles.topUserName}>{topUsers[0].userName}</Text>
           </View>
         )}
-
-        {/* Second User (Left - Rank 2) */}
         {topUsers[1] && (
           <View style={styles.topUserItemLeft}>
             <Image
@@ -176,8 +198,6 @@ export default function Leaderboard() {
             <Text style={styles.topUserName}>{topUsers[1].userName}</Text>
           </View>
         )}
-
-        {/* Third User (Right - Rank 3) */}
         {topUsers[2] && (
           <View style={styles.topUserItemRight}>
             <Image
@@ -231,17 +251,24 @@ export default function Leaderboard() {
           </Text>
         </TouchableOpacity>
       </View>
-      {isContentVisible && renderTopUsers()}
-
-      {/* Content Section */}
+      <Animated.View
+        style={{
+          height: interpolatedHeight,
+          opacity: interpolatedOpacity,
+          overflow: "hidden",
+          backgroundColor: Colors.PRIMARY,
+          marginTop: -10,
+        }}
+      >
+        {renderTopUsers()}
+      </Animated.View>
       <View
         style={{
-          flex: 1, // Ensure the content fills the remaining space
+          flex: 1,
           backgroundColor: "#f0f0f0",
           paddingHorizontal: 10,
-          borderTopLeftRadius: 30, // Top-left border radius
-          borderTopRightRadius: 30, // Top-right border radius
-          height: "100%", // Ensures full screen height
+          borderTopLeftRadius: 30,
+          borderTopRightRadius: 30,
         }}
       >
         {loading ? (
@@ -258,7 +285,7 @@ export default function Leaderboard() {
         )}
       </View>
       <TouchableOpacity
-        onPress={() => setIsContentVisible((prev) => !prev)}
+        onPress={toggleVisibility}
         style={{
           position: "absolute",
           bottom: 30,
@@ -293,33 +320,33 @@ const styles = StyleSheet.create({
   tabsContainer: {
     flexDirection: "row",
     margin: 20,
-    height: 50, // Set height for the tab container
-    backgroundColor: Colors.PRIMARY_DARK, // Background color for the tab container
-    borderRadius: 25, // Make the container rounded
-    padding: 5, // Add padding for spacing around the capsule
-    marginBottom: 20, // Space below the tabs
+    height: 50,
+    backgroundColor: Colors.PRIMARY_DARK,
+    borderRadius: 25,
+    padding: 5,
+    marginBottom: 20,
     alignItems: "center",
   },
   tab: {
-    flex: 1, // Equal space for each tab
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 25, // Rounded edges for the capsule
+    borderRadius: 25,
     height: 40,
   },
   activeTab: {
-    backgroundColor: Colors.PRIMARY_LIGHT, // Active tab background color
-    elevation: 3, // Slight shadow for the active tab
+    backgroundColor: Colors.PRIMARY_LIGHT,
+    elevation: 3,
   },
   inactiveTab: {
-    backgroundColor: "transparent", // Transparent for inactive tabs
+    backgroundColor: "transparent",
   },
   activeTabText: {
-    color: "#ffffff", // White text for the active tab
+    color: "#ffffff",
     fontFamily: "outfit-bold",
   },
   inactiveTabText: {
-    color: "#888888", // Grey text for inactive tabs
+    color: "#888888",
     fontFamily: "outfit-bold",
   },
   leaderboardItem: {
@@ -350,15 +377,14 @@ const styles = StyleSheet.create({
   fireImage: {
     width: 15,
     height: 15,
-    marginLeft: 15, // Adjusted to add some space between the streak text and fire icon
-    alignSelf: "center", // Centers the fire icon vertically with the text
+    marginLeft: 15,
+    alignSelf: "center",
   },
   streakText: {
     fontSize: 14,
     color: "#666",
-    fontFamily: "outfit", // Ensure the streak text matches the overall font style
+    fontFamily: "outfit",
   },
-
   userName: {
     fontSize: 16,
     fontFamily: "outfit-bold",
@@ -384,30 +410,29 @@ const styles = StyleSheet.create({
   topUsersContainer: {
     position: "relative",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 0,
   },
   podiumImage: {
     width: 250,
     height: 130,
-    // resizeMode: "contain",
-    marginTop: 40,
+    marginTop: 0,
   },
   topUserItemCenter: {
     position: "absolute",
-    top: 0,
+    top: 40,
     alignItems: "center",
     zIndex: 2,
   },
   topUserItemLeft: {
     position: "absolute",
-    top: 40,
+    top: 70,
     left: 85,
     alignItems: "center",
     zIndex: 1,
   },
   topUserItemRight: {
     position: "absolute",
-    top: 70,
+    top: 100,
     right: 90,
     alignItems: "center",
     zIndex: 1,
@@ -445,18 +470,31 @@ const styles = StyleSheet.create({
   podiumWrapper: {
     width: 250,
     height: 130,
-    marginTop: 80,
+    marginTop: 130,
     position: "relative",
     alignItems: "center",
     justifyContent: "center",
   },
   confettiAnimation: {
     position: "absolute",
-    top: -100,
+    top: -120,
     left: -100,
     width: 500,
     height: 500,
     zIndex: 3,
     pointerEvents: "none",
+  },
+  profileContainer: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  crownImage: {
+    width: 70,
+    height: 60,
+    position: "absolute",
+    top: -40,
+    zIndex: 10,
   },
 });

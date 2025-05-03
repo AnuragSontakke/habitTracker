@@ -3,7 +3,6 @@ import {
   View,
   Text,
   Image,
-  TextInput,
   StyleSheet,
   FlatList,
   TouchableOpacity,
@@ -25,6 +24,7 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { Colors } from "../../constants/Colors";
 import { Modal } from "../../components";
 import CreateEventForm from "../../pages/Feeds/EventForm";
+import CommentModal from "../../pages/Feeds/CommentModal";
 
 export default function EventsFeed() {
   const { userId, userName, userRole, userTeacher } = useUserContext();
@@ -32,12 +32,11 @@ export default function EventsFeed() {
   const [comments, setComments] = useState({});
   const [teacherId, setTeacherId] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [newEvent, setNewEvent] = useState({
-    eventName: "",
-    eventType: "",
-    price: "",
-    eventImage: "",
-  });
+  const [isCommentsModalVisible, setIsCommentsModalVisible] = useState(false);
+  const [selectedEventComments, setSelectedEventComments] = useState([]);
+  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [newComment, setNewComment] = useState("");
+  const [showAllCommentsByEvent, setShowAllCommentsByEvent] = useState({});
 
   const teacherName =
     userRole === "teacher" ? userName : userTeacher?.teacherName || "";
@@ -64,32 +63,45 @@ export default function EventsFeed() {
         ...doc.data(),
       }));
       setEvents(data);
+    }, (error) => {
+      console.error("Error fetching events:", error);
+      Alert.alert("Error", "Failed to load events.");
     });
 
     return () => unsub();
   }, [teacherId]);
 
   const reactToEvent = async (eventId, field) => {
-    const ref = doc(db, "teacherNetworks", teacherId, "events", eventId);
-    await updateDoc(ref, {
-      [field]: arrayUnion({ userId, userName }),
-    });
+    try {
+      const ref = doc(db, "teacherNetworks", teacherId, "events", eventId);
+      await updateDoc(ref, {
+        [field]: arrayUnion({ userId, userName }),
+      });
+    } catch (error) {
+      console.error(`Error reacting to event (${field}):`, error);
+      Alert.alert("Error", `Failed to ${field === "likes" ? "like" : field === "interested" ? "mark interested" : "volunteer for"} the event.`);
+    }
   };
 
   const commentEvent = async (eventId) => {
-    const ref = doc(db, "teacherNetworks", teacherId, "events", eventId);
     const commentText = comments[eventId]?.trim();
     if (!commentText) return;
 
-    await updateDoc(ref, {
-      comments: arrayUnion({
-        userId,
-        userName,
-        userPic: "",
-        comment: commentText,
-      }),
-    });
-    setComments((prev) => ({ ...prev, [eventId]: "" }));
+    try {
+      const ref = doc(db, "teacherNetworks", teacherId, "events", eventId);
+      await updateDoc(ref, {
+        comments: arrayUnion({
+          userId,
+          userName,
+          userPic: "",
+          comment: commentText,
+        }),
+      });
+      setComments((prev) => ({ ...prev, [eventId]: "" }));
+    } catch (error) {
+      console.error("Error adding comment:", error);
+      Alert.alert("Error", "Failed to add comment.");
+    }
   };
 
   const handleAddEvent = () => {
@@ -100,8 +112,37 @@ export default function EventsFeed() {
     setIsModalVisible(false);
   };
 
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
+
+    const commentData = {
+      userId,
+      userName,
+      userPic: "",
+      comment: newComment.trim(),
+    };
+
+    try {
+      const eventRef = doc(
+        db,
+        "teacherNetworks",
+        teacherId,
+        "events",
+        selectedEventId
+      );
+      await updateDoc(eventRef, {
+        comments: arrayUnion(commentData),
+      });
+      setSelectedEventComments((prev) => [...prev, commentData]);
+      setNewComment("");
+    } catch (error) {
+      console.error("Error adding comment via modal:", error);
+      Alert.alert("Error", "Failed to add comment.");
+    }
+  };
+
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <Modal
         visible={isModalVisible}
         animationType="slide"
@@ -114,6 +155,19 @@ export default function EventsFeed() {
         <CreateEventForm />
       </Modal>
 
+      <CommentModal
+        visible={isCommentsModalVisible}
+        onClose={() => {
+          setIsCommentsModalVisible(false);
+          setSelectedEventId(null);
+          setNewComment("");
+        }}
+        comments={selectedEventComments}
+        onAddComment={handleAddComment}
+        newComment={newComment}
+        setNewComment={setNewComment}
+      />
+
       <View style={styles.headerContainer}>
         <Text style={styles.headerText}>Feeds</Text>
       </View>
@@ -123,9 +177,14 @@ export default function EventsFeed() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.container}
         renderItem={({ item }) => {
-          const liked = item.likes?.some((r) => r.userId === userId);
-          const interested = item.interested?.some((r) => r.userId === userId);
-          const volunteered = item.volunteers?.some((r) => r.userId === userId);
+          const liked = item.likes?.some((r) => r.userId === userId) || false;
+          const interested = item.interested?.some((r) => r.userId === userId) || false;
+          const volunteered = item.volunteers?.some((r) => r.userId === userId) || false;
+          const showAllComments = showAllCommentsByEvent[item.id] || false;
+
+          const commentsToDisplay = showAllComments
+            ? item.comments || []
+            : (item.comments || []).slice(0, 10);
 
           return (
             <View style={styles.card}>
@@ -139,29 +198,32 @@ export default function EventsFeed() {
               )}
 
               <View style={styles.actionsRow}>
-                <View style={{ flexDirection: "row" }}>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <ReactionButton
                     onPress={() => reactToEvent(item.id, "likes")}
                     icon={
                       <Ionicons
                         name={liked ? "heart" : "heart-outline"}
-                        size={22}
+                        size={30}
                         color={liked ? "red" : "black"}
-                        style={styles.icon}
+                        style={styles.reactionIcon}
                       />
                     }
                   />
+                  <Text style={styles.reactionCount}>{item.likes?.length || 0}</Text>
+
                   <ReactionButton
                     onPress={() => reactToEvent(item.id, "interested")}
                     icon={
                       <MaterialIcons
                         name={interested ? "bookmark" : "bookmark-outline"}
-                        size={22}
+                        size={30}
                         color={interested ? "gold" : "black"}
-                        style={styles.icon}
+                        style={styles.reactionIcon}
                       />
                     }
                   />
+                  <Text style={styles.reactionCount}>{item.interested?.length || 0}</Text>
                 </View>
 
                 {userRole === "member" &&
@@ -179,22 +241,46 @@ export default function EventsFeed() {
                   ))}
               </View>
 
-              <Text style={styles.reactions}>
-                ❤️ {item.likes?.length || 0} Likes ‧ 🔖{" "}
-                {item.interested?.length || 0} Interested ‧ 🤝{" "}
-                {item.volunteers?.length || 0} Volunteers
-              </Text>
-
               <Text style={styles.caption}>
-                <Text style={styles.bold}>{item.eventName} </Text>•{" "}
-                {item.eventType} • ₹{item.price}
+                <Text style={styles.bold}>{item.eventName} </Text> 
+                {item.eventType}  ₹{item.price}
               </Text>
 
-              {(item.comments || []).slice(0, 10).map((c, index) => (
+              <Text style={styles.comment2}>
+                <Text style={styles.bold}>Comments</Text>
+              </Text>
+
+              {commentsToDisplay.map((c, index) => (
                 <Text key={index} style={styles.comment}>
                   <Text style={styles.bold}>{c.userName}</Text> {c.comment}
                 </Text>
               ))}
+
+              {item.comments?.length > 10 && !showAllComments && (
+                <TouchableOpacity
+                  onPress={() =>
+                    setShowAllCommentsByEvent((prev) => ({
+                      ...prev,
+                      [item.id]: true,
+                    }))
+                  }
+                >
+                  <Text style={styles.showMore}>Show More</Text>
+                </TouchableOpacity>
+              )}
+
+              {showAllComments && (
+                <TouchableOpacity
+                  onPress={() =>
+                    setShowAllCommentsByEvent((prev) => ({
+                      ...prev,
+                      [item.id]: false,
+                    }))
+                  }
+                >
+                  <Text style={styles.showMore}>Show Less</Text>
+                </TouchableOpacity>
+              )}
 
               <View style={styles.commentRow}>
                 <Ionicons
@@ -203,15 +289,16 @@ export default function EventsFeed() {
                   color="gray"
                   style={{ marginRight: 6 }}
                 />
-                <TextInput
-                  placeholder="Add a comment..."
-                  value={comments[item.id] || ""}
-                  onChangeText={(text) =>
-                    setComments((prev) => ({ ...prev, [item.id]: text }))
-                  }
-                  onSubmitEditing={() => commentEvent(item.id)}
-                  style={styles.commentInput}
-                />
+                <TouchableOpacity
+                  onPress={() => {
+                    setSelectedEventComments(item.comments || []);
+                    setSelectedEventId(item.id);
+                    setIsCommentsModalVisible(true);
+                  }}
+                  style={[styles.commentInput, { justifyContent: "center" }]}
+                >
+                  <Text style={{ color: "gray" }}>Add a comment...</Text>
+                </TouchableOpacity>
               </View>
             </View>
           );
@@ -223,7 +310,7 @@ export default function EventsFeed() {
           <Ionicons name="add" size={32} color="#fff" />
         </TouchableOpacity>
       )}
-    </>
+    </View>
   );
 }
 
@@ -292,8 +379,8 @@ const styles = StyleSheet.create({
   userName: {
     marginLeft: 8,
     fontWeight: "600",
-    fontSize: 14,
-    fontFamily: "outfit-medium",
+    fontSize: 16,
+    fontFamily: "outfit-bold",
   },
   image: {
     width: "100%",
@@ -307,21 +394,20 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
-  icon: {
-    marginRight: 16,
-  },
-  reactions: {
-    fontWeight: "600",
-    fontSize: 13,
-    paddingHorizontal: 12,
-    marginTop: 6,
-    color: "#444",
-    fontFamily: "outfit-medium",
+  reactionIcon: {
+    marginRight: 5,
   },
   caption: {
     paddingHorizontal: 12,
     marginTop: 6,
-    fontSize: 13,
+    fontSize: 16,
+    fontFamily: "outfit-bold",
+    color: Colors.PRIMARY_DARK,
+  },
+  comment2: {
+    paddingHorizontal: 12,
+    marginTop: 6,
+    fontSize: 14,
     fontFamily: "outfit",
   },
   bold: {
@@ -442,8 +528,21 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     fontFamily: "outfit-medium",
   },
-    meditationModal: {
-      height: Dimensions.get("window").height * 0.8, // Fixed height (70% of screen height)
-      justifyContent: "space-between",
-    },
+  meditationModal: {
+    height: Dimensions.get("window").height * 0.8,
+    justifyContent: "space-between",
+  },
+  reactionCount: {
+    fontFamily: "outfit-medium",
+    fontSize: 16,
+    color: "black",
+    marginLeft: 0,
+    alignSelf: "center",
+  },
+  showMore: {
+    color: "blue",
+    fontSize: 14,
+    marginVertical: 8,
+    paddingHorizontal: 12,
+  },
 });

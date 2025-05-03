@@ -90,7 +90,7 @@ export default function Challenges() {
         const progressPercent = (elapsed_sec / totalDuration) * 100;
         setMeditationProgress(progressPercent);
 
-        if (!meditationProgressUpdated && progressPercent >= 3) {
+        if (!meditationProgressUpdated && progressPercent >= 95) {
           updateProgressMeditation(selectedMeditation);
           setMeditationProgressUpdated(true);
         }
@@ -208,7 +208,7 @@ export default function Challenges() {
       setProgress(status.positionMillis);
       setDuration(status.durationMillis);
 
-      const tenPercent = status.durationMillis * 0.01;
+      const tenPercent = status.durationMillis * 0.9;
       const today = new Date().toISOString().split("T")[0];
       const challengeKey = `${item.challengeId}-${today}`;
 
