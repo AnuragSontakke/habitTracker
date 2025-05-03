@@ -15,14 +15,16 @@ import { doc, getDoc } from "firebase/firestore";
 import { useUserContext } from "../../contexts/UserContext";
 import { getWeekNumber } from "../../services/weekNumber";
 import { Colors } from "../../constants/Colors";
+import LottieView from "lottie-react-native";
 
 export default function Leaderboard() {
   const [activeTab, setActiveTab] = useState("Weekly");
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentWeekKey, setCurrentWeekKey] = useState("");
-  const { userTeacher } = useUserContext();
+  const { userTeacher, userRole, userId } = useUserContext();
   const screenWidth = Dimensions.get("window").width; // Get screen width
+  const [isContentVisible, setIsContentVisible] = useState(true);
 
   // Calculate the current week key
   useEffect(() => {
@@ -39,7 +41,9 @@ export default function Leaderboard() {
   const fetchLeaderboardData = async () => {
     setLoading(true);
     try {
-      const coinsRef = doc(db, "coin", userTeacher.teacherId); // Replace with dynamic teacherId
+      const teacherId = userRole === "teacher" ? userId : userTeacher.teacherId;
+
+      const coinsRef = doc(db, "coin", teacherId); // Replace with dynamic teacherId
       const coinsSnap = await getDoc(coinsRef);
 
       if (!coinsSnap.exists()) {
@@ -97,7 +101,7 @@ export default function Leaderboard() {
     } else if (index === 2) {
       medalImage = require("../../assets/images/bronze-medal.png"); // Bronze medal for rank 3
     }
-  
+
     return (
       <View style={styles.leaderboardItem}>
         <View style={styles.userDetails}>
@@ -114,26 +118,80 @@ export default function Leaderboard() {
               <Text style={styles.userStats}>
                 Coins: {item.coins}
                 {item.streak > 0 && (
-                  <Text style={styles.streakText}> | Streak: {item.streak}</Text>
+                  <Text style={styles.streakText}>
+                    {" "}
+                    | Streak: {item.streak}
+                  </Text>
                 )}
-                {/* {item.streak > 0 && (
-                  <Image
-                    source={require("../../assets/images/fire.png")} // Fire icon if streak exists
-                    style={styles.fireImage}
-                  />
-                )} */}
               </Text>
             </View>
           </View>
         </View>
-  
+
         {/* Show medal for top 3 */}
         {medalImage && <Image source={medalImage} style={styles.medalImage} />}
       </View>
     );
   };
-  
-  
+  const renderTopUsers = () => {
+    const topUsers = leaderboardData.slice(0, 3);
+
+    return (
+      <View style={styles.topUsersContainer}>
+        <View style={styles.podiumWrapper}>
+          <Image
+            source={require("../../assets/images/rank.png")}
+            style={styles.podiumImage}
+          />
+          <LottieView
+            source={require("../../assets/lottie/winner.json")}
+            autoPlay
+            loop={true}
+            style={styles.confettiAnimation}
+          />
+        </View>
+
+        {/* First User (Center - Rank 1) */}
+        {topUsers[0] && (
+          <View style={styles.topUserItemCenter}>
+            <Image
+              source={{
+                uri: topUsers[0].userImage || "https://via.placeholder.com/150",
+              }}
+              style={styles.topUserImageCenter}
+            />
+            <Text style={styles.topUserName}>{topUsers[0].userName}</Text>
+          </View>
+        )}
+
+        {/* Second User (Left - Rank 2) */}
+        {topUsers[1] && (
+          <View style={styles.topUserItemLeft}>
+            <Image
+              source={{
+                uri: topUsers[1].userImage || "https://via.placeholder.com/150",
+              }}
+              style={styles.topUserImageLeft}
+            />
+            <Text style={styles.topUserName}>{topUsers[1].userName}</Text>
+          </View>
+        )}
+
+        {/* Third User (Right - Rank 3) */}
+        {topUsers[2] && (
+          <View style={styles.topUserItemRight}>
+            <Image
+              source={{
+                uri: topUsers[2].userImage || "https://via.placeholder.com/150",
+              }}
+              style={styles.topUserImageRight}
+            />
+            <Text style={styles.topUserName}>{topUsers[2].userName}</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -173,6 +231,7 @@ export default function Leaderboard() {
           </Text>
         </TouchableOpacity>
       </View>
+      {isContentVisible && renderTopUsers()}
 
       {/* Content Section */}
       <View
@@ -198,6 +257,23 @@ export default function Leaderboard() {
           <Text style={styles.noDataText}>No data available.</Text>
         )}
       </View>
+      <TouchableOpacity
+        onPress={() => setIsContentVisible((prev) => !prev)}
+        style={{
+          position: "absolute",
+          bottom: 30,
+          right: 20,
+          backgroundColor: Colors.PRIMARY_DARK,
+          padding: 15,
+          borderRadius: 30,
+          elevation: 5,
+          zIndex: 999,
+        }}
+      >
+        <Text style={{ color: "white", fontFamily: "outfit-bold" }}>
+          {isContentVisible ? "Hide" : "Winners"}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -304,5 +380,83 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 20,
     fontFamily: "outfit-bold",
+  },
+  topUsersContainer: {
+    position: "relative",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  podiumImage: {
+    width: 250,
+    height: 130,
+    // resizeMode: "contain",
+    marginTop: 40,
+  },
+  topUserItemCenter: {
+    position: "absolute",
+    top: 0,
+    alignItems: "center",
+    zIndex: 2,
+  },
+  topUserItemLeft: {
+    position: "absolute",
+    top: 40,
+    left: 85,
+    alignItems: "center",
+    zIndex: 1,
+  },
+  topUserItemRight: {
+    position: "absolute",
+    top: 70,
+    right: 90,
+    alignItems: "center",
+    zIndex: 1,
+  },
+  topUserImageCenter: {
+    width: 60,
+    height: 60,
+    borderRadius: 40,
+    borderWidth: 3,
+    borderColor: "#FFD700",
+    marginBottom: 5,
+  },
+  topUserImageLeft: {
+    width: 50,
+    height: 50,
+    borderRadius: 32.5,
+    borderWidth: 2,
+    borderColor: "#C0C0C0",
+    marginBottom: 5,
+  },
+  topUserImageRight: {
+    width: 44,
+    height: 44,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: "#CD7F32",
+    marginBottom: 5,
+  },
+  topUserName: {
+    color: "#fff",
+    fontFamily: "outfit-bold",
+    fontSize: 10,
+    textAlign: "center",
+  },
+  podiumWrapper: {
+    width: 250,
+    height: 130,
+    marginTop: 80,
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  confettiAnimation: {
+    position: "absolute",
+    top: -100,
+    left: -100,
+    width: 500,
+    height: 500,
+    zIndex: 3,
+    pointerEvents: "none",
   },
 });

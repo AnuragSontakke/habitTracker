@@ -1,98 +1,105 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Image, Alert } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  Animated,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "../../configs/FirebaseConfig";
 import { Colors } from "../../constants/Colors";
 import { useUserContext } from "../../contexts/UserContext";
 
-// NewTaskCard Component
 export default function NewTaskCard() {
   const router = useRouter();
+  const { userId } = useUserContext();
   const [existingChallenges, setExistingChallenges] = useState([]);
-  const {userId} = useUserContext()
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  // Fetch challenges for the teacher
   useEffect(() => {
     const fetchChallenges = async () => {
       try {
-        const teacherChallengesRef = doc(db, "challenge", userId);
-        const docSnap = await getDoc(teacherChallengesRef);
+        const docRef = doc(db, "challenge", userId);
+        const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          const challengesData = docSnap.data().challenges || [];
-          setExistingChallenges(challengesData);
-        } else {
-          console.log("No challenges found for this teacher.");
+          setExistingChallenges(docSnap.data().challenges || []);
         }
       } catch (error) {
-        console.error("Error fetching teacher's challenges:", error);
+        console.error("Error fetching challenges:", error);
       }
     };
-
     fetchChallenges();
   }, [userId]);
 
-  // Handle task creation navigation
   const handlePress = () => {
-   
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.97,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
       router.push("/tasks/new-task");
-   
+    });
   };
 
   return (
-    <TouchableOpacity
-      onPress={handlePress}
-      activeOpacity={0.7}
-      style={styles.card}
-    >
-      <View style={styles.cardContent}>
-        {/* Animated GIF */}
+    <Animated.View style={[styles.cardWrapper, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        onPress={handlePress}
+        activeOpacity={0.85}
+        style={styles.card}
+      >
         <Image
-          source={require('../../assets/images/achieve.png')}
-          style={styles.gif}
+          source={require("../../assets/images/achieve.png")}
+          style={styles.image}
           resizeMode="contain"
         />
-        {/* Text */}
-        <Text style={styles.cardText}>{existingChallenges.length > 0 ? "View Challenges" : "Create Challenge"}</Text>
-      </View>
-    </TouchableOpacity>
+        <Text style={styles.text}>
+          {existingChallenges.length > 0 ? "View Challenges" : "Create Challenge"}
+        </Text>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
-// Styles
 const styles = StyleSheet.create({
-  card: {
-    margin: 20,
-    borderWidth: 2,
-    borderColor: Colors.GRAY,
-    borderRadius: 25,  // Increased border radius
-    paddingVertical: 15,
-    paddingHorizontal: 25,
-    marginBottom: 20,
+  cardWrapper: {
+    marginVertical: 40,
     alignItems: "center",
-    justifyContent: "center",
-    width: "90%", // Full width
-    maxWidth: 350,  // Optional: You can set a max width if you want to limit it on larger screens
-    height: 100,
-    alignSelf: "center",
-    backgroundColor: "#fff",
-    elevation: 5,
-    shadowColor: Colors.GRAY,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
   },
-  cardContent: {
+  card: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#f9f9f9",
+    paddingVertical: 18,
+    paddingHorizontal: 25,
+    borderRadius: 22,
+    width: "90%",
+    maxWidth: 350,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: "#eee",
   },
-  gif: {
-    width: 70, 
-    height: 70,
-    marginRight: 10,
+  image: {
+    width: 60,
+    height: 60,
+    marginRight: 16,
   },
-  cardText: {
-    fontSize: 16,
+  text: {
+    fontSize: 17,
     fontFamily: "outfit-bold",
     color: Colors.GRAY,
   },

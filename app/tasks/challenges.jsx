@@ -592,23 +592,7 @@ export default function Challenges() {
         ) : (
           <View style={styles.progressContainer}>
             <View style={styles.rowBetween}>
-              <Text style={styles.challengeName}>{item.challengeName}</Text>
-              {/* <View style={styles.fireBadgeContainer}>
-                <View style={styles.fireCircle}>
-                  <Image
-                    source={require("../../assets/images/fire.png")}
-                    style={styles.fireImage}
-                    resizeMode="contain"
-                  />
-                  {userChallenge?.streak > 0 && (
-                    <View style={styles.streakBadge}>
-                      <Text style={styles.streakBadgeText}>
-                        {userChallenge.streak}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View> */}
+              <Text style={styles.challengeName}>{item.challengeName}</Text>             
             </View>
 
             <FlatList
