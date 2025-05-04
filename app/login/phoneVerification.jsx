@@ -240,12 +240,7 @@ const PhoneVerification = ({ onVerified }) => {
     if (!profession.trim()) {
       Alert.alert("Missing Profession", "Please enter your profession.");
       return;
-    }
-
-    if (!upgradeDone) {
-      Alert.alert("Upgrade Required", "Please confirm that the upgrade session is done.");
-      return;
-    }
+    }   
 
     // Simulate success without OTP
     onVerified({

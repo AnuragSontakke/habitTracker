@@ -91,7 +91,7 @@ export default function MenuList() {
       try {
         const result = await Share.share({
           message:
-            "Download the Habit Share App by Art of Living Volunteers: [App Link]",
+            "Download the Habit Share App by [App Link]",
         });
         if (result.action === Share.sharedAction) {
           console.log("App shared successfully");

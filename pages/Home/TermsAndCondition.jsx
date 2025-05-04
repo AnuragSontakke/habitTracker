@@ -60,7 +60,7 @@ const TermsAndCondition = () => {
       <Text style={styles.boldTitle}>7. Contact</Text>
 
       <Text style={styles.heading}>🔒 Privacy Policy </Text>
-      <Text style={styles.subHeading}>Effective Date: #rd May 2025</Text>
+      <Text style={styles.subHeading}>Effective Date: 3rd May 2025</Text>
 
       <Text style={styles.boldTitle}>1. Information We Collect</Text>
       <Text style={styles.termText}>

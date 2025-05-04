@@ -130,6 +130,13 @@ export default function JoinNetwork() {
 
   const approveRequest = async (requestId) => {
     try {
+      // Find the request object from the requests array
+      const requestToApprove = requests.find((req) => req.userId === requestId);
+      if (!requestToApprove) {
+        Alert.alert("Request not found.");
+        return;
+      }
+
       const userSnapshot = await getDoc(doc(db, "users", requestId));
       if (!userSnapshot.exists()) {
         Alert.alert("User data not found.");
@@ -164,7 +171,7 @@ export default function JoinNetwork() {
       const teacherDocRef = doc(db, "teacherNetworks", userId);
       await updateDoc(teacherDocRef, {
         members: arrayUnion(newMember),
-        requests: arrayRemove(newMember),
+        requests: arrayRemove(requestToApprove),
       });
 
       await updateDoc(doc(db, "users", requestId), {
@@ -181,23 +188,12 @@ export default function JoinNetwork() {
 
   const rejectRequest = async (requestId) => {
     try {
-      const userSnapshot = await getDoc(doc(db, "users", requestId));
-      if (!userSnapshot.exists()) {
-        Alert.alert("User data not found.");
+      // Find the request object from the requests array
+      const requestToRemove = requests.find((req) => req.userId === requestId);
+      if (!requestToRemove) {
+        Alert.alert("Request not found.");
         return;
       }
-
-      const userData = userSnapshot.data();
-      const requestToRemove = {
-        userId: requestId,
-        fullName: userData?.fullName || "",
-        email: userData?.email || "",
-        role: userData?.role || "member",
-        phone: userData?.phone || "",
-        courses: userData?.courses || [],
-        profession: userData?.profession || "",
-        upgradeSessionDone: userData?.upgradeSessionDone || false,
-      };
 
       const teacherDocRef = doc(db, "teacherNetworks", userId);
       await updateDoc(teacherDocRef, {
