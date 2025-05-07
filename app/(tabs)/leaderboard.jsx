@@ -154,7 +154,6 @@ export default function Leaderboard() {
 
   const renderTopUsers = () => {
     const topUsers = leaderboardData.slice(0, 3);
-
     return (
       <View style={styles.topUsersContainer}>
         <View style={styles.podiumWrapper}>
@@ -184,7 +183,7 @@ export default function Leaderboard() {
                 style={styles.topUserImageCenter}
               />
             </View>
-            <Text style={styles.topUserName}>{topUsers[0].userName}</Text>
+            <Text style={styles.topUserName}> {topUsers[0].userName.split(" ")[0]}</Text>
           </View>
         )}
         {topUsers[1] && (
@@ -195,7 +194,7 @@ export default function Leaderboard() {
               }}
               style={styles.topUserImageLeft}
             />
-            <Text style={styles.topUserName}>{topUsers[1].userName}</Text>
+            <Text style={styles.topUserName}> {topUsers[1].userName.split(" ")[0]}</Text>
           </View>
         )}
         {topUsers[2] && (
@@ -206,7 +205,7 @@ export default function Leaderboard() {
               }}
               style={styles.topUserImageRight}
             />
-            <Text style={styles.topUserName}>{topUsers[2].userName}</Text>
+            <Text style={styles.topUserName}> {topUsers[2].userName.split(" ")[0]}</Text>
           </View>
         )}
       </View>
