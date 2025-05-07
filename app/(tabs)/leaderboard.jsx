@@ -15,7 +15,7 @@ import {
 import { db } from "../../configs/FirebaseConfig";
 import { doc, getDoc } from "firebase/firestore";
 import { useUserContext } from "../../contexts/UserContext";
-import { getWeekNumber } from "../../services/weekNumber";
+import { getISOWeekNumber, getWeekNumber } from "../../services/weekNumber";
 import { Colors } from "../../constants/Colors";
 import LottieView from "lottie-react-native";
 
@@ -32,7 +32,8 @@ export default function Leaderboard() {
   // Calculate the current week key
   useEffect(() => {
     const today = new Date();
-    const weekNumber = getWeekNumber(today);
+    const useISO = new Date() >= new Date("2025-05-12"); // Next Monday
+    const weekNumber = useISO ? getISOWeekNumber(today) : getWeekNumber(today);
     const year = today.getFullYear();
     setCurrentWeekKey(`week${weekNumber}year${year}`);
   }, []);
@@ -183,7 +184,10 @@ export default function Leaderboard() {
                 style={styles.topUserImageCenter}
               />
             </View>
-            <Text style={styles.topUserName}> {topUsers[0].userName.split(" ")[0]}</Text>
+            <Text style={styles.topUserName}>
+              {" "}
+              {topUsers[0].userName.split(" ")[0]}
+            </Text>
           </View>
         )}
         {topUsers[1] && (
@@ -194,7 +198,10 @@ export default function Leaderboard() {
               }}
               style={styles.topUserImageLeft}
             />
-            <Text style={styles.topUserName}> {topUsers[1].userName.split(" ")[0]}</Text>
+            <Text style={styles.topUserName}>
+              {" "}
+              {topUsers[1].userName.split(" ")[0]}
+            </Text>
           </View>
         )}
         {topUsers[2] && (
@@ -205,7 +212,10 @@ export default function Leaderboard() {
               }}
               style={styles.topUserImageRight}
             />
-            <Text style={styles.topUserName}> {topUsers[2].userName.split(" ")[0]}</Text>
+            <Text style={styles.topUserName}>
+              {" "}
+              {topUsers[2].userName.split(" ")[0]}
+            </Text>
           </View>
         )}
       </View>

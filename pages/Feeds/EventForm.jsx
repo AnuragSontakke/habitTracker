@@ -8,32 +8,29 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
-  Platform,
   ToastAndroid,
 } from "react-native";
 import { Picker } from "@react-native-picker/picker";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
-import { db, storage } from "../../configs/FirebaseConfig";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { db } from "../../configs/FirebaseConfig";
 import * as ImagePicker from "expo-image-picker";
 import { useUserContext } from "../../contexts/UserContext";
 import { Ionicons } from "@expo/vector-icons";
-import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImageManipulator from "expo-image-manipulator";
 
-
-export default function CreateEventForm() {
+export default function CreateEventForm({onSubmit}) {
   const { userId } = useUserContext();
   const [event, setEvent] = useState({
     eventName: "",
     registrationLink: "",
-    eventImage: "", // will store Firebase image URL
+    eventImage: "",
     price: "",
+    content: "",
   });
 
-  const [imageUri, setImageUri] = useState(null); // local preview
+  const [imageUri, setImageUri] = useState(null);
   const [loading, setLoading] = useState(false);
-
-  const [eventType, setEventType] = useState("Tour Plan");
+  const [eventType, setEventType] = useState("");
   const [expiryOption, setExpiryOption] = useState("1 Week");
 
   const handleChange = (field, value) => {
@@ -57,7 +54,7 @@ export default function CreateEventForm() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [4, 3], // for center crop
+        aspect: [4, 3],
         quality: 1,
       });
 
@@ -92,14 +89,12 @@ export default function CreateEventForm() {
   const uploadImageToCloudinary = async (uri) => {
     try {
       setLoading(true);
-  
-      // Compress and resize image before upload
       const manipulatedImage = await ImageManipulator.manipulateAsync(
         uri,
-        [{ resize: { width: 800 } }], // Resize to 800px width (adjust as needed)
-        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG } // 70% quality
+        [{ resize: { width: 800 } }],
+        { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG }
       );
-  
+
       const formData = new FormData();
       formData.append("file", {
         uri: manipulatedImage.uri,
@@ -107,7 +102,7 @@ export default function CreateEventForm() {
         name: "upload.jpg",
       });
       formData.append("upload_preset", "habitTracker");
-  
+
       const res = await fetch(
         `https://api.cloudinary.com/v1_1/${process.env.EXPO_PUBLIC_CLOUDINARY_CLOUDNAME}/image/upload`,
         {
@@ -115,7 +110,7 @@ export default function CreateEventForm() {
           body: formData,
         }
       );
-  
+
       const data = await res.json();
       if (data.secure_url) {
         setEvent((prev) => ({ ...prev, eventImage: data.secure_url }));
@@ -130,21 +125,34 @@ export default function CreateEventForm() {
       setLoading(false);
     }
   };
-  
-  
 
   const handleSubmit = async () => {
-    const eventData = {
-      ...event,
+    let eventData = {
       eventType,
-      price: Number(event.price),
       createdAt: Timestamp.now(),
-      expiryAt: Timestamp.fromDate(getExpiryDate()),
       comments: [],
       likes: [],
       volunteer: [],
       interested: [],
     };
+
+    if (eventType === "Course/Tour") {
+      eventData = {
+        ...eventData,
+        eventName: event.eventName,
+        registrationLink: event.registrationLink,
+        eventImage: event.eventImage,
+        price: Number(event.price),
+        expiryAt: Timestamp.fromDate(getExpiryDate()),
+      };
+    } else {
+      eventData = {
+        ...eventData,
+        content: event.content,
+        eventImage: eventType === "Normal Post with Image" ? event.eventImage : "",
+        expiryAt: Timestamp.fromDate(getExpiryDate()),
+      };
+    }
 
     try {
       await addDoc(collection(db, "teacherNetworks", userId, "events"), eventData);
@@ -154,27 +162,20 @@ export default function CreateEventForm() {
         registrationLink: "",
         eventImage: "",
         price: "",
+        content: "",
       });
-      setEventType("Tour Plan");
+      setEventType("");
       setExpiryOption("1 Week");
       setImageUri(null);
     } catch (err) {
       console.error("Error creating event:", err);
       ToastAndroid.show("Something went wrong!", ToastAndroid.LONG);
     }
+    onSubmit();
   };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-     
-
-      <TextInput
-        style={styles.input}
-        placeholder="Event Name"
-        value={event.eventName}
-        onChangeText={(text) => handleChange("eventName", text)}
-      />
-
       <Text style={styles.label}>Event Type</Text>
       <View style={styles.pickerContainer}>
         <Picker
@@ -182,55 +183,91 @@ export default function CreateEventForm() {
           onValueChange={(value) => setEventType(value)}
           style={styles.picker}
         >
-          <Picker.Item label="Tour Plan" value="Tour Plan" />
-          <Picker.Item label="Course" value="Course" />
+          <Picker.Item label="Select Event Type" value="" />
+          <Picker.Item label="Course/Tour" value="Course/Tour" />
+          <Picker.Item label="Normal Post with Image" value="Normal Post with Image" />
+          <Picker.Item label="Normal Post" value="Normal Post" />
         </Picker>
       </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Registration Link"
-        value={event.registrationLink}
-        onChangeText={(text) => handleChange("registrationLink", text)}
-      />
+      {eventType === "Course/Tour" && (
+        <>
+          <TextInput
+            style={styles.input}
+            placeholder="Event Name"
+            value={event.eventName}
+            onChangeText={(text) => handleChange("eventName", text)}
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Registration Link"
+            value={event.registrationLink}
+            onChangeText={(text) => handleChange("registrationLink", text)}
+          />
+          <Text style={styles.label}>Upload Event Image</Text>
+          <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
+            {loading ? (
+              <ActivityIndicator color="gray" />
+            ) : imageUri ? (
+              <Image source={{ uri: imageUri }} style={styles.imagePreview} />
+            ) : (
+              <Ionicons name="cloud-upload-outline" size={40} color="#bbb" />
+            )}
+          </TouchableOpacity>
+          <TextInput
+            style={styles.input}
+            placeholder="Price"
+            value={event.price}
+            onChangeText={(text) => handleChange("price", text)}
+            keyboardType="numeric"
+          />
+          <Text style={styles.label}>Expiry Duration</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={expiryOption}
+              onValueChange={(value) => setExpiryOption(value)}
+              style={styles.picker}
+            >
+              <Picker.Item label="1 Day" value="1 Day" />
+              <Picker.Item label="1 Week" value="1 Week" />
+              <Picker.Item label="2 Weeks" value="2 Weeks" />
+              <Picker.Item label="3 Weeks" value="3 Weeks" />
+              <Picker.Item label="4 Weeks" value="4 Weeks" />
+            </Picker>
+          </View>
+        </>
+      )}
 
-      <Text style={styles.label}>Upload Event Image</Text>
-      <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
-        {loading ? (
-          <ActivityIndicator color="gray" />
-        ) : imageUri ? (
-          <Image source={{ uri: imageUri }} style={styles.imagePreview} />
-        ) : (
-          <Ionicons name="cloud-upload-outline" size={40} color="#bbb" />
-        )}
-      </TouchableOpacity>
+      {(eventType === "Normal Post with Image" || eventType === "Normal Post") && (
+        <TextInput
+          style={[styles.input, { height: 100 }]}
+          placeholder="Post Content"
+          value={event.content}
+          onChangeText={(text) => handleChange("content", text)}
+          multiline
+        />
+      )}
 
-      <TextInput
-        style={styles.input}
-        placeholder="Price"
-        value={event.price}
-        onChangeText={(text) => handleChange("price", text)}
-        keyboardType="numeric"
-      />
+      {eventType === "Normal Post with Image" && (
+        <>
+          <Text style={styles.label}>Upload Post Image</Text>
+          <TouchableOpacity style={styles.uploadBox} onPress={pickImage}>
+            {loading ? (
+              <ActivityIndicator color="gray" />
+            ) : imageUri ? (
+              <Image source={{ uri: imageUri }} style={styles.imagePreview} />
+            ) : (
+              <Ionicons name="cloud-upload-outline" size={40} color="#bbb" />
+            )}
+          </TouchableOpacity>
+        </>
+      )}
 
-      <Text style={styles.label}>Expiry Duration</Text>
-      <View style={styles.pickerContainer}>
-        <Picker
-          selectedValue={expiryOption}
-          onValueChange={(value) => setExpiryOption(value)}
-          style={styles.picker}
-        >
-          <Picker.Item label="1 Day" value="1 Day" />
-          <Picker.Item label="1 Week" value="1 Week" />
-          <Picker.Item label="2 Weeks" value="2 Weeks" />
-          <Picker.Item label="3 Weeks" value="3 Weeks" />
-          <Picker.Item label="4 Weeks" value="4 Weeks" />
-        </Picker>
-      </View>
-
-      <TouchableOpacity style={styles.button} onPress={handleSubmit}>
-        <Text style={styles.buttonText}>Create Event</Text>
-      </TouchableOpacity>
+      {eventType && (
+        <TouchableOpacity style={styles.button} onPress={handleSubmit}>
+          <Text style={styles.buttonText}>Create Event</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 }
@@ -240,28 +277,19 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 50,
     backgroundColor: "#f9f9f9",
-    
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    marginBottom: 16,
-    textAlign: "center",
-  },
-  input: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    fontSize: 16,
   },
   label: {
     fontSize: 15,
     fontWeight: "600",
     marginBottom: 6,
     marginTop: 10,
+  },
+  input: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 12,
+    color: "#333",
+    fontSize: 16,
   },
   pickerContainer: {
     backgroundColor: "#fff",

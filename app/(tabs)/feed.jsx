@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Animated,
   Dimensions,
+  Alert,
 } from "react-native";
 import {
   collection,
@@ -25,9 +26,12 @@ import { Colors } from "../../constants/Colors";
 import { Modal } from "../../components";
 import CreateEventForm from "../../pages/Feeds/EventForm";
 import CommentModal from "../../pages/Feeds/CommentModal";
+import { FeedContext } from "../../contexts/FeedContext";
+import * as SecureStore from "expo-secure-store";
 
 export default function EventsFeed() {
   const { userId, userName, userRole, userTeacher } = useUserContext();
+  const { setHasNewFeed } = useContext(FeedContext);
   const [events, setEvents] = useState([]);
   const [comments, setComments] = useState({});
   const [teacherId, setTeacherId] = useState(null);
@@ -57,19 +61,40 @@ export default function EventsFeed() {
       orderBy("createdAt", "desc")
     );
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setEvents(data);
-    }, (error) => {
-      console.error("Error fetching events:", error);
-      Alert.alert("Error", "Failed to load events.");
-    });
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setEvents(data);
+      },
+      (error) => {
+        console.error("Error fetching events:", error);
+        Alert.alert("Error", "Failed to load events. Please try again.");
+      }
+    );
 
     return () => unsub();
   }, [teacherId]);
+
+  useEffect(() => {
+    // Update last seen time when user views feed
+    const updateLastSeenTime = async () => {
+      if (events.length > 0) {
+        const latestEventTime = events[0].createdAt.toMillis();
+        try {
+          await SecureStore.setItemAsync("lastSeenFeedTime", latestEventTime.toString());
+          setHasNewFeed(false);
+        } catch (error) {
+          console.error("Error writing lastSeenFeedTime to SecureStore:", error);
+          Alert.alert("Storage Error", "Failed to update feed status.");
+        }
+      }
+    };
+    updateLastSeenTime();
+  }, [events, setHasNewFeed]);
 
   const reactToEvent = async (eventId, field) => {
     try {
@@ -79,7 +104,10 @@ export default function EventsFeed() {
       });
     } catch (error) {
       console.error(`Error reacting to event (${field}):`, error);
-      Alert.alert("Error", `Failed to ${field === "likes" ? "like" : field === "interested" ? "mark interested" : "volunteer for"} the event.`);
+      Alert.alert(
+        "Error",
+        `Failed to ${field === "likes" ? "like" : field === "interested" ? "mark interested" : "volunteer for"} the event.`
+      );
     }
   };
 
@@ -152,7 +180,7 @@ export default function EventsFeed() {
         title="Create New Event"
         style={styles.meditationModal}
       >
-        <CreateEventForm />
+        <CreateEventForm onSubmit={handleModalClose} />
       </Modal>
 
       <CommentModal
@@ -176,10 +204,15 @@ export default function EventsFeed() {
         data={events}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.container}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>No feeds available</Text>
+          </View>
+        }
         renderItem={({ item }) => {
           const liked = item.likes?.some((r) => r.userId === userId) || false;
           const interested = item.interested?.some((r) => r.userId === userId) || false;
-          const volunteered = item.volunteers?.some((r) => r.userId === userId) || false;
+          const volunteered = item.volunteer?.some((r) => r.userId === userId) || false;
           const showAllComments = showAllCommentsByEvent[item.id] || false;
 
           const commentsToDisplay = showAllComments
@@ -196,6 +229,29 @@ export default function EventsFeed() {
               {item.eventImage && (
                 <Image source={{ uri: item.eventImage }} style={styles.image} />
               )}
+
+              <View style={styles.contentContainer}>
+                {item.eventType === "Course/Tour" ? (
+                  <>
+                    <Text style={styles.caption}>
+                      <Text style={styles.bold}>{item.eventName} </Text>
+                      ({item.eventType})
+                    </Text>
+                    {item.price > 0 && (
+                      <Text style={styles.price}>₹{item.price}</Text>
+                    )}
+                    {item.registrationLink && (
+                      <Text style={styles.link}>
+                        Register: <Text style={styles.linkText}>{item.registrationLink}</Text>
+                      </Text>
+                    )}
+                  </>
+                ) : (
+                  <Text style={styles.caption}>
+                    {item.content}
+                  </Text>
+                )}
+              </View>
 
               <View style={styles.actionsRow}>
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -227,24 +283,20 @@ export default function EventsFeed() {
                 </View>
 
                 {userRole === "member" &&
+                  item.eventType === "Course/Tour" && // Only show volunteer button for Course/Tour
                   (volunteered ? (
                     <View style={styles.requestedButton}>
                       <Text style={styles.requestedText}>Requested</Text>
                     </View>
                   ) : (
                     <TouchableOpacity
-                      onPress={() => reactToEvent(item.id, "volunteers")}
+                      onPress={() => reactToEvent(item.id, "volunteer")}
                       style={styles.joinButton}
                     >
                       <Text style={styles.joinText}>Join as Volunteer</Text>
                     </TouchableOpacity>
                   ))}
               </View>
-
-              <Text style={styles.caption}>
-                <Text style={styles.bold}>{item.eventName} </Text> 
-                {item.eventType}  ₹{item.price}
-              </Text>
 
               <Text style={styles.comment2}>
                 <Text style={styles.bold}>Comments</Text>
@@ -345,7 +397,18 @@ const styles = StyleSheet.create({
     paddingTop: 100,
     paddingBottom: 100,
     paddingHorizontal: 15,
-    backgroundColor: "#8B8BFC33",
+    // backgroundColor: "#8B8BFC33",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 100,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontFamily: "outfit-medium",
+    color: "#555",
   },
   fab: {
     position: "absolute",
@@ -387,6 +450,31 @@ const styles = StyleSheet.create({
     height: 300,
     resizeMode: "cover",
   },
+  contentContainer: {
+    paddingHorizontal: 12,
+    marginTop: 6,
+  },
+  caption: {
+    fontSize: 16,
+    fontFamily: "outfit-bold",
+    color: Colors.PRIMARY_DARK,
+  },
+  price: {
+    fontSize: 14,
+    fontFamily: "outfit",
+    color: "#333",
+    marginTop: 4,
+  },
+  link: {
+    fontSize: 14,
+    fontFamily: "outfit",
+    color: "#333",
+    marginTop: 4,
+  },
+  linkText: {
+    color: "blue",
+    textDecorationLine: "underline",
+  },
   actionsRow: {
     flexDirection: "row",
     paddingHorizontal: 12,
@@ -396,13 +484,6 @@ const styles = StyleSheet.create({
   },
   reactionIcon: {
     marginRight: 5,
-  },
-  caption: {
-    paddingHorizontal: 12,
-    marginTop: 6,
-    fontSize: 16,
-    fontFamily: "outfit-bold",
-    color: Colors.PRIMARY_DARK,
   },
   comment2: {
     paddingHorizontal: 12,
@@ -481,51 +562,6 @@ const styles = StyleSheet.create({
     color: "white",
     fontWeight: "600",
     fontSize: 13,
-    fontFamily: "outfit-medium",
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: "#000000aa",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContainer: {
-    width: "90%",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    padding: 20,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 12,
-    fontFamily: "outfit-bold",
-  },
-  input: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
-    marginBottom: 10,
-    fontSize: 14,
-    paddingVertical: 4,
-    fontFamily: "outfit",
-  },
-  modalButtons: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 12,
-  },
-  cancelButton: {
-    marginRight: 12,
-  },
-  submitButton: {
-    backgroundColor: Colors.PRIMARY,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-  },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "600",
     fontFamily: "outfit-medium",
   },
   meditationModal: {
