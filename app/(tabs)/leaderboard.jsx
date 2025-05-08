@@ -123,26 +123,26 @@ export default function Leaderboard() {
     } else if (index === 2) {
       medalImage = require("../../assets/images/bronze-medal.png");
     }
-
+  
     return (
       <View style={styles.leaderboardItem}>
         <View style={styles.userDetails}>
           <View style={styles.userInfo}>
-            <Image
-              source={{
-                uri: item.userImage || "https://via.placeholder.com/150",
-              }}
-              style={styles.userImage}
-            />
-            <View style={{ display: "flex", flexDirection: "column" }}>
+            <View style={styles.profileContainer2}>
+              <Image
+                source={{ uri: item.userImage || "https://via.placeholder.com/150" }}
+                style={styles.userImage}
+              />
+              <View style={styles.rankBadge}>
+                <Text style={styles.rankBadgeText}>{index + 1}</Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: "column" }}>
               <Text style={styles.userName}>{item.userName}</Text>
               <Text style={styles.userStats}>
                 Coins: {item.coins}
                 {item.streak > 0 && (
-                  <Text style={styles.streakText}>
-                    {" "}
-                    | Streak: {item.streak}
-                  </Text>
+                  <Text style={styles.streakText}> | Streak: {item.streak}</Text>
                 )}
               </Text>
             </View>
@@ -278,6 +278,7 @@ export default function Leaderboard() {
           paddingHorizontal: 10,
           borderTopLeftRadius: 30,
           borderTopRightRadius: 30,
+          overflow: "hidden",
         }}
       >
         {loading ? (
@@ -287,7 +288,7 @@ export default function Leaderboard() {
             data={leaderboardData}
             renderItem={renderLeaderboardItem}
             keyExtractor={(item, index) => index.toString()}
-            contentContainerStyle={{ paddingBottom: 20 }}
+            contentContainerStyle={{ paddingBottom: 20,  }}
           />
         ) : (
           <Text style={styles.noDataText}>No data available.</Text>
@@ -377,22 +378,39 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  profileContainer2: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 44,
+    height: 44,
+    marginRight: 10,
+  },
   userImage: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    marginRight: 10,
+    borderWidth: 0,
+    borderColor: Colors.PRIMARY_DARK,
   },
-  fireImage: {
-    width: 15,
-    height: 15,
-    marginLeft: 15,
-    alignSelf: "center",
+  rankBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: Colors.PRIMARY_LIGHT,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "white",
+    zIndex: 1, // Ensure badge is above the image
   },
-  streakText: {
-    fontSize: 14,
-    color: "#666",
-    fontFamily: "outfit",
+  rankBadgeText: {
+    color: "white",
+    fontSize: 10,
+    fontFamily: "outfit-bold",
   },
   userName: {
     fontSize: 16,
@@ -505,5 +523,34 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -40,
     zIndex: 10,
+  },
+  profileContainer2: {
+    width: 48,
+    height: 48,
+    borderRadius: 22,
+    borderWidth: 3,
+    borderColor: Colors.PRIMARY, // Fire color
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+    marginRight: 10,
+  },
+  rankBadge: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: Colors.PRIMARY,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "white",
+  },
+  rankBadgeText: {
+    color: "white",
+    fontSize: 9,
+    fontFamily: "outfit-bold",
   },
 });

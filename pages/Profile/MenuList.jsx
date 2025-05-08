@@ -74,6 +74,15 @@ export default function MenuList() {
       iconBgColor: "#83a5e6",
     },
     {
+      id: 7,
+      name: "Long Kriya Attendance",
+      path: "/attendance/kriya-attendance",
+      role: "admin",
+      hide: (userRole === "member" || userRole === "volunteer") ? true : false,
+      icon: "battery-charging",
+      iconBgColor: "#1312e6",
+    },
+    {
       id: 6,
       name: "Logout",
       path: "logout",
