@@ -20,6 +20,7 @@ import { Colors } from "../../constants/Colors";
 import LottieView from "lottie-react-native";
 import NumberBadge from "../../components/NumberBadge";
 import LevelBadge from "../../components/LevelBadge";
+import { getMedalImage } from "../../services/dataFromStreak";
 
 export default function Leaderboard() {
   const [activeTab, setActiveTab] = useState("Weekly");
@@ -73,13 +74,13 @@ export default function Leaderboard() {
       const teacherId = userRole === "teacher" ? userId : userTeacher.teacherId;
       const coinsRef = doc(db, "coin", teacherId);
       const coinsSnap = await getDoc(coinsRef);
-
+  
       if (!coinsSnap.exists()) {
         Alert.alert("No Data", "No leaderboard data available.");
         setLeaderboardData([]);
         return;
       }
-
+  
       const coins = coinsSnap.data().coins || [];
       let data = [];
       if (activeTab === "Weekly") {
@@ -92,6 +93,8 @@ export default function Leaderboard() {
               userImage: coin.userImage,
               coins: weeklyData.coins || 0,
               streak: weeklyData.streak || 0,
+              allTimeStreak: coin.allTime?.streak || 0, // Include all-time streak
+              levelText: coin.levelText || "Brass Bravery", // Existing level text
             };
           })
           .sort((a, b) => b.coins - a.coins);
@@ -101,12 +104,14 @@ export default function Leaderboard() {
             userName: coin.userName,
             userId: coin.userId,
             userImage: coin.userImage,
-            coins: coin.allTime.coins || 0,
-            streak: coin.allTime.streak || 0,
+            coins: coin.allTime?.coins || 0,
+            streak: coin.allTime?.streak || 0,
+            allTimeStreak: coin.allTime?.streak || 0, // Include all-time streak
+            levelText: coin.levelText || "Brass Bravery", // Existing level text
           }))
           .sort((a, b) => b.coins - a.coins);
       }
-
+  
       setLeaderboardData(data);
     } catch (error) {
       console.error("Error fetching leaderboard data:", error);
@@ -125,7 +130,7 @@ export default function Leaderboard() {
     } else if (index === 2) {
       medalImage = require("../../assets/images/medal3.png");
     }
-
+    const userMedalImage = getMedalImage(item.allTimeStreak);
     return (
       <View style={styles.leaderboardItem}>
         {/* Leftmost: Rank or Medal */}
@@ -136,7 +141,7 @@ export default function Leaderboard() {
             <Text style={styles.rankText}>{index + 1}</Text>
           )}
         </View>
-
+  
         {/* Main user details */}
         <View style={styles.userDetails}>
           <View style={styles.userInfo}>
@@ -147,23 +152,32 @@ export default function Leaderboard() {
                     uri: item.userImage || "https://via.placeholder.com/150",
                   }}
                   style={styles.fireImage}
-                  resizeMode="contain"
+                  resizeMode="cover"
+                />
+                <LevelBadge
+                  streak={item.allTimeStreak} // Pass all-time streak
+                  fontSize={7}
+                  paddingVertical={0}
+                  minWidth={60}
+                  height={18}
+                  borderWidth={1.5}
+                  bottom={-9}
+                  opacity={1}
                 />
               </View>
-              <LevelBadge
-                levelText={"Brass Bravery"} // or whatever level
-                fontSize={7}
-                paddingVertical={0}
-                minWidth={60}
-                height={20}
-                borderWidth={1.5}
-                top={35}
-                right={0}
-                opacity={1}
-              />
             </View>
             <View style={{ flexDirection: "column" }}>
+            <View style={styles.userNameContainer}>
               <Text style={styles.userName}>{item.userName}</Text>
+              {/* Medal positioned absolutely to the right of userName */}
+              {userMedalImage && (
+                <Image
+                  source={userMedalImage}
+                  style={styles.bronzeMedal}
+                  resizeMode="contain"
+                />
+              )}
+            </View>
               <Text style={styles.userStats}>
                 Coins: {item.coins}
                 {item.streak > 0 && (
@@ -390,7 +404,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     padding: 15,
     backgroundColor: "#fff",
-    marginTop: 17,
+    marginTop: 10,
     borderRadius: 20,
     alignItems: "center",
     shadowColor: "#000",
@@ -582,25 +596,26 @@ const styles = StyleSheet.create({
   },
   iconWrapper: {
     position: "relative",
-    width: 46, // adjust based on your layout
-    height: 46,
+    width: 54, // Match fireCircle width
+    height: 54, // Match fireCircle height
     marginRight: 20,
     justifyContent: "center",
   },
   fireCircle: {
     width: 54, // Circle size
     height: 54,
-    borderRadius: 25,
+    borderRadius: 27, // Half of width/height
     borderWidth: 2.5,
     borderColor: Colors.PRIMARY_DARK, // Orange/red border like fire
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,
+    overflow: "visible", // Allow badge to overflow
   },
   fireImage: {
     width: 45,
     height: 45,
-    borderRadius: 20,
+    borderRadius: 22.5,
     borderWidth: 0,
     borderColor: Colors.PRIMARY_DARK,
   },
@@ -615,5 +630,20 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontFamily: "outfit-bold",
     color: Colors.PRIMARY_DARK,
+  },
+  userNameContainer: {
+    position: "relative", // Make this container the reference for absolute positioning
+    flexDirection: "row", // Ensure text and image are aligned
+    alignItems: "center",
+  },
+  bronzeMedal: {
+    width: 44, // Adjust size as needed
+    height: 44,
+    marginLeft: 4, // Space between username and medal
+    position: "absolute",
+    left: "100%", // Position at the end of the username text
+    marginLeft: 4, // Space between username and medal
+    top: "0%", // Center vertically relative to username
+    transform: [{ translateY: -8 }], // Offset by half the image height to center
   },
 });
