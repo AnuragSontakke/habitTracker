@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Image, // Added for displaying userImage
 } from "react-native";
 import {
   collection,
@@ -39,6 +40,7 @@ export default function JoinNetwork() {
     userCourses,
     userProfession,
     userUpgradeSessionDone,
+    userImage, // Added userImage from UserContext
   } = useUserContext();
 
   const [teacherCode, setTeacherCode] = useState("");
@@ -101,6 +103,7 @@ export default function JoinNetwork() {
           courses: userCourses || [],
           profession: userProfession || "",
           upgradeSessionDone: userUpgradeSessionDone || false,
+          userImage: userImage || "", // Added userImage
         }),
       });
 
@@ -130,7 +133,6 @@ export default function JoinNetwork() {
 
   const approveRequest = async (requestId) => {
     try {
-      // Find the request object from the requests array
       const requestToApprove = requests.find((req) => req.userId === requestId);
       if (!requestToApprove) {
         Alert.alert("Request not found.");
@@ -153,6 +155,7 @@ export default function JoinNetwork() {
         courses: userData?.courses || [],
         profession: userData?.profession || "",
         upgradeSessionDone: userData?.upgradeSessionDone || false,
+        userImage: userData?.userImage || "", // Added userImage
       };
 
       const teacherSnapshot = await getDoc(doc(db, "users", userId));
@@ -188,7 +191,6 @@ export default function JoinNetwork() {
 
   const rejectRequest = async (requestId) => {
     try {
-      // Find the request object from the requests array
       const requestToRemove = requests.find((req) => req.userId === requestId);
       if (!requestToRemove) {
         Alert.alert("Request not found.");
@@ -210,7 +212,23 @@ export default function JoinNetwork() {
 
   const renderRequestCard = ({ item }) => (
     <View style={styles.card}>
-      <View style={{ flex: 1 }}>
+      <View style={styles.cardImageContainer}>
+        {item?.userImage ? (
+          <Image
+            source={{ uri: item.userImage }}
+            style={styles.cardImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <Ionicons
+            name="person-circle-outline"
+            size={40}
+            color="gray"
+            style={styles.cardImagePlaceholder}
+          />
+        )}
+      </View>
+      <View style={styles.cardContent}>
         <Text style={styles.cardName}>{item?.fullName}</Text>
         <Text style={styles.cardEmail}>{item?.email}</Text>
       </View>
@@ -334,6 +352,22 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 5,
     elevation: 2,
+    alignItems: "center",
+  },
+  cardImageContainer: {
+    marginRight: 10,
+  },
+  cardImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  cardImagePlaceholder: {
+    width: 40,
+    height: 40,
+  },
+  cardContent: {
+    flex: 1,
   },
   cardName: {
     fontSize: 16,

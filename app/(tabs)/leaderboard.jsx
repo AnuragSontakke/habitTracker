@@ -18,6 +18,8 @@ import { useUserContext } from "../../contexts/UserContext";
 import { getISOWeekNumber, getWeekNumber } from "../../services/weekNumber";
 import { Colors } from "../../constants/Colors";
 import LottieView from "lottie-react-native";
+import NumberBadge from "../../components/NumberBadge";
+import LevelBadge from "../../components/LevelBadge";
 
 export default function Leaderboard() {
   const [activeTab, setActiveTab] = useState("Weekly");
@@ -117,38 +119,63 @@ export default function Leaderboard() {
   const renderLeaderboardItem = ({ item, index }) => {
     let medalImage = null;
     if (index === 0) {
-      medalImage = require("../../assets/images/gold-medal.png");
+      medalImage = require("../../assets/images/medal1.png");
     } else if (index === 1) {
-      medalImage = require("../../assets/images/silver-medal.png");
+      medalImage = require("../../assets/images/medal2.png");
     } else if (index === 2) {
-      medalImage = require("../../assets/images/bronze-medal.png");
+      medalImage = require("../../assets/images/medal3.png");
     }
-  
+
     return (
       <View style={styles.leaderboardItem}>
+        {/* Leftmost: Rank or Medal */}
+        <View style={styles.rankWrapper}>
+          {medalImage ? (
+            <Image source={medalImage} style={styles.medalImage} />
+          ) : (
+            <Text style={styles.rankText}>{index + 1}</Text>
+          )}
+        </View>
+
+        {/* Main user details */}
         <View style={styles.userDetails}>
           <View style={styles.userInfo}>
-            <View style={styles.profileContainer2}>
-              <Image
-                source={{ uri: item.userImage || "https://via.placeholder.com/150" }}
-                style={styles.userImage}
-              />
-              <View style={styles.rankBadge}>
-                <Text style={styles.rankBadgeText}>{index + 1}</Text>
+            <View style={styles.iconWrapper}>
+              <View style={styles.fireCircle}>
+                <Image
+                  source={{
+                    uri: item.userImage || "https://via.placeholder.com/150",
+                  }}
+                  style={styles.fireImage}
+                  resizeMode="contain"
+                />
               </View>
+              <LevelBadge
+                levelText={"Brass Bravery"} // or whatever level
+                fontSize={7}
+                paddingVertical={0}
+                minWidth={60}
+                height={20}
+                borderWidth={1.5}
+                top={35}
+                right={0}
+                opacity={1}
+              />
             </View>
             <View style={{ flexDirection: "column" }}>
               <Text style={styles.userName}>{item.userName}</Text>
               <Text style={styles.userStats}>
                 Coins: {item.coins}
                 {item.streak > 0 && (
-                  <Text style={styles.streakText}> | Streak: {item.streak}</Text>
+                  <Text style={styles.streakText}>
+                    {" "}
+                    | Streak: {item.streak}
+                  </Text>
                 )}
               </Text>
             </View>
           </View>
         </View>
-        {medalImage && <Image source={medalImage} style={styles.medalImage} />}
       </View>
     );
   };
@@ -288,7 +315,7 @@ export default function Leaderboard() {
             data={leaderboardData}
             renderItem={renderLeaderboardItem}
             keyExtractor={(item, index) => index.toString()}
-            contentContainerStyle={{ paddingBottom: 20,  }}
+            contentContainerStyle={{ paddingBottom: 20 }}
           />
         ) : (
           <Text style={styles.noDataText}>No data available.</Text>
@@ -552,5 +579,41 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 9,
     fontFamily: "outfit-bold",
+  },
+  iconWrapper: {
+    position: "relative",
+    width: 46, // adjust based on your layout
+    height: 46,
+    marginRight: 20,
+    justifyContent: "center",
+  },
+  fireCircle: {
+    width: 54, // Circle size
+    height: 54,
+    borderRadius: 25,
+    borderWidth: 2.5,
+    borderColor: Colors.PRIMARY_DARK, // Orange/red border like fire
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  fireImage: {
+    width: 45,
+    height: 45,
+    borderRadius: 20,
+    borderWidth: 0,
+    borderColor: Colors.PRIMARY_DARK,
+  },
+  rankWrapper: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 6, // Add spacing between rank and user image
+  },
+  rankText: {
+    fontSize: 22,
+    fontFamily: "outfit-bold",
+    color: Colors.PRIMARY_DARK,
   },
 });

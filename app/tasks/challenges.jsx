@@ -29,6 +29,8 @@ import { config } from "../../config";
 import { ChallengeCompletionModal, Modal } from "../../components";
 import YoutubePlayer from "react-native-youtube-iframe";
 import * as Progress from "react-native-progress";
+import NumberBadge from "../../components/NumberBadge";
+import { getISOWeekNumber } from "../../services/weekNumber";
 
 const { width } = Dimensions.get("window");
 
@@ -298,17 +300,17 @@ export default function Challenges() {
     }
   };
 
-  function getWeekNumber(date = new Date()) {
-    const startOfYear = new Date(date.getFullYear(), 0, 1);
-    const diff = date - startOfYear;
-    const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
-    return Math.ceil(dayOfYear / 7);
-  }
+  // function getWeekNumber(date = new Date()) {
+  //   const startOfYear = new Date(date.getFullYear(), 0, 1);
+  //   const diff = date - startOfYear;
+  //   const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24)) + 1;
+  //   return Math.ceil(dayOfYear / 7);
+  // }
 
   const handleChallengeCompletion = async (challengeId) => {
     try {
       const today = new Date();
-      const weekNumber = getWeekNumber(today);
+      const weekNumber = getISOWeekNumber(today);
       const year = today.getFullYear();
       const weekKey = `week${weekNumber}year${year}`;
       const todayDate = today.toISOString().split("T")[0];
@@ -493,29 +495,37 @@ export default function Challenges() {
       const month = new Date(date).toLocaleString("default", {
         month: "short",
       });
-    
+
       const isNewMonth =
         index === 0 ||
         new Date(date).getMonth() !== new Date(allDays[index - 1]).getMonth();
-    
+
       // Check: is it the last date item?
       const isLastItem = index === allDays.length - 1;
-    
+
       return (
         <View style={styles.dateCircle}>
           {isLastItem && userChallenge?.streak > 0 ? (
             // 👉 Show Fire badge for last item if streak active
-            <View style={styles.fireCircle}>
-              <Image
-                source={require('../../assets/images/fire.png')}
-                style={styles.fireImage}
-                resizeMode="contain"
-              />
-              <View style={styles.streakBadge}>
-                <Text style={styles.streakBadgeText}>
-                  {userChallenge?.streak}
-                </Text>
+            <View style={styles.iconWrapper}>
+              <View style={styles.fireCircle}>
+                <Image
+                  source={require("../../assets/images/fire.png")}
+                  style={styles.fireImage}
+                  resizeMode="contain"
+                />
               </View>
+              <NumberBadge
+                number={userChallenge?.streak}
+                backgroundColor="#FF6B00"
+                top={-4}
+                right={4}
+                fontSize={8}
+                paddingVertical={1}
+                minWidth={16}
+                height={16}
+                borderWidth={1}
+              />
             </View>
           ) : (
             // 👉 Otherwise normal date circle
@@ -545,7 +555,6 @@ export default function Challenges() {
         </View>
       );
     };
-    
 
     return (
       <View style={styles.challengeItem}>
@@ -592,7 +601,7 @@ export default function Challenges() {
         ) : (
           <View style={styles.progressContainer}>
             <View style={styles.rowBetween}>
-              <Text style={styles.challengeName}>{item.challengeName}</Text>             
+              <Text style={styles.challengeName}>{item.challengeName}</Text>
             </View>
 
             <FlatList
@@ -1033,28 +1042,19 @@ const styles = StyleSheet.create({
     borderColor: "#FF6B00", // Orange/red border like fire
     alignItems: "center",
     justifyContent: "center",
-    position: "relative",
   },
   fireImage: {
     width: 20,
     height: 20,
   },
-  streakBadge: {
+  badgeWrapper: {
     position: "absolute",
-    top: -4,
-    right: -4,
-    backgroundColor: "#FF6B00", // Same fire color or different
-    width: 15,
-    height: 15,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "white", // To separate badge from background
+    top: -8,
+    right: -8,
   },
-  streakBadgeText: {
-    color: "white",
-    fontSize: 8,
-    fontWeight: "bold",
+  iconWrapper: {
+    position: "relative",
+    width: 40, // adjust based on your layout
+    height: 40,
   },
 });

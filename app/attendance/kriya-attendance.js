@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -31,8 +31,8 @@ export default function CommonKriyaAttendance() {
     message: "",
   });
   const navigation = useNavigation();
-  const teacherId =
-    userRole === "teacher" ? userId : userTeacher?.teacherId || "";
+  const teacherId = userRole === "teacher" ? userId : userTeacher?.teacherId || "";
+  const challengeCompletionTracker = useRef(new Set());
 
   useEffect(() => {
     navigation.setOptions({
@@ -60,14 +60,16 @@ export default function CommonKriyaAttendance() {
       }
 
       try {
-        const coinsRef = doc(db, "coin", teacherId);
-        const coinsSnap = await getDoc(coinsRef);
-        let userCoins = [];
+        // Fetch users from teacherNetworks
+        const teacherSnapshot = await getDoc(doc(db, "teacherNetworks", teacherId));
+        const usersList = teacherSnapshot.exists()
+          ? teacherSnapshot.data()?.members || []
+          : [];
 
-        if (coinsSnap.exists()) {
-          userCoins = coinsSnap.data().coins || [];
-        } else {
-          setError("No users found for this teacher.");
+        if (usersList.length === 0) {
+          setError("No users found in this teacher's network.");
+          setLoading(false);
+          return;
         }
 
         // Fetch Kriya challenge ID
@@ -88,31 +90,33 @@ export default function CommonKriyaAttendance() {
           return;
         }
 
-        // Fetch attendance status for each user
+        // Batch fetch attendance status for all users
         const todayDate = new Date().toISOString().split("T")[0];
         const attendanceStatus = {};
-        for (const user of userCoins) {
-          const userChallengeRef = doc(db, "userChallenge", user.userId);
-          const userChallengeSnap = await getDoc(userChallengeRef);
-          let completedToday = false;
+        const userChallengePromises = usersList.map((user) =>
+          getDoc(doc(db, "userChallenge", user.userId))
+        );
+        const userChallengeSnaps = await Promise.all(userChallengePromises);
 
-          if (userChallengeSnap.exists()) {
-            const challenges = userChallengeSnap.data().challenges || {};
+        userChallengeSnaps.forEach((snap, index) => {
+          const user = usersList[index];
+          let completedToday = false;
+          if (snap.exists()) {
+            const challenges = snap.data().challenges || {};
             const kriyaChallenge = challenges[kriyaChallengeId];
             completedToday =
               kriyaChallenge?.completed?.some(
                 (entry) => entry.date === todayDate
               ) || false;
           }
-
           attendanceStatus[user.userId] = completedToday;
-        }
+        });
 
-        setUsers(userCoins);
+        setUsers(usersList.map((user) => ({ ...user, challengeId: kriyaChallengeId })));
         setUserAttendanceStatus(attendanceStatus);
       } catch (err) {
         console.error("Error fetching users:", err);
-        setError("Failed to load users.");
+        setError(`Failed to load users: ${err.message}`);
       } finally {
         setLoading(false);
       }
@@ -125,15 +129,27 @@ export default function CommonKriyaAttendance() {
   const handleAttendance = async (selectedUser) => {
     try {
       const today = new Date();
-      const useISO = new Date() >= new Date("2025-05-12"); // Next Monday
-      const weekNumber = useISO
-        ? getISOWeekNumber(today)
-        : getWeekNumber(today);
+      const useISO = new Date() >= new Date("2025-05-12");
+      const weekNumber = useISO ? getISOWeekNumber(today) : getWeekNumber(today);
       const year = today.getFullYear();
       const weekKey = `week${weekNumber}year${year}`;
       const todayDate = today.toISOString().split("T")[0];
-      const coinsEarned = 15;
+      const coinsEarned = 15; // Fixed 15 coins for group Kriya attendance
       const challengeName = "Kriya";
+      const challengeId = selectedUser.challengeId;
+      const challengeKey = `${challengeId}-${selectedUser.userId}-${todayDate}`;
+
+      // Prevent duplicate completion
+      if (challengeCompletionTracker.current.has(challengeKey)) {
+        setCompletionModal({
+          visible: true,
+          challengeName,
+          streak: 0,
+          coinsEarned: 0,
+          message: "Attendance already being processed.",
+        });
+        return;
+      }
 
       // Fetch user's challenge data
       const userChallengeRef = doc(db, "userChallenge", selectedUser.userId);
@@ -142,35 +158,12 @@ export default function CommonKriyaAttendance() {
         ? userChallengeSnap.data().challenges || {}
         : {};
 
-      // Find Kriya challenge ID
-      const challengesRef = doc(db, "challenge", teacherId);
-      const challengesSnap = await getDoc(challengesRef);
-      let kriyaChallengeId = null;
-      if (challengesSnap.exists()) {
-        const challenges = challengesSnap.data().challenges || [];
-        const kriyaChallenge = challenges.find(
-          (c) => c.challengeName.toLowerCase() === "kriya"
-        );
-        kriyaChallengeId = kriyaChallenge?.challengeId;
-      }
-
-      if (!kriyaChallengeId) {
-        setCompletionModal({
-          visible: true,
-          challengeName,
-          streak: 0,
-          coinsEarned: 0,
-          message: "Kriya challenge not found.",
-        });
-        return;
-      }
-
       // Initialize challenge data if not exists
-      if (!updatedChallenges[kriyaChallengeId]) {
-        updatedChallenges[kriyaChallengeId] = { completed: [], streak: 0 };
+      if (!updatedChallenges[challengeId]) {
+        updatedChallenges[challengeId] = { completed: [], streak: 0 };
       }
 
-      const challenge = updatedChallenges[kriyaChallengeId];
+      const challenge = updatedChallenges[challengeId];
       const completedToday = challenge.completed.some(
         (entry) => entry.date === todayDate
       );
@@ -181,22 +174,20 @@ export default function CommonKriyaAttendance() {
           challengeName,
           streak: challenge.streak,
           coinsEarned: 0,
-          message: `${selectedUser.userName} has already completed Kriya today.`,
+          message: `${selectedUser.fullName} has already completed Kriya today.`,
         });
         return;
       }
 
       // Update challenge completion
       challenge.completed.push({ date: todayDate, status: true });
-      const yesterday = new Date(today.setDate(today.getDate() - 1))
-        .toISOString()
-        .split("T")[0];
-      const lastCompletion =
-        challenge.completed[challenge.completed.length - 2];
-      challenge.streak =
-        lastCompletion && lastCompletion.date === yesterday
-          ? challenge.streak + 1
-          : 1;
+      const yesterday = new Date(today);
+      yesterday.setDate(today.getDate() - 1);
+      const yesterdayDate = yesterday.toISOString().split("T")[0];
+      const lastCompletion = challenge.completed.find(
+        (entry) => entry.date === yesterdayDate
+      );
+      challenge.streak = lastCompletion ? challenge.streak + 1 : 1;
 
       // Save updated challenge data
       await setDoc(
@@ -208,17 +199,17 @@ export default function CommonKriyaAttendance() {
       // Update coins
       const coinsRef = doc(db, "coin", teacherId);
       const coinsSnap = await getDoc(coinsRef);
-      let userCoins = coinsSnap.exists() ? coinsSnap.data().coins : [];
+      let userCoins = coinsSnap.exists() ? coinsSnap.data().coins || [] : [];
 
       let userCoinData = userCoins.find(
         (coin) => coin.userId === selectedUser.userId
       );
       if (!userCoinData) {
         userCoinData = {
-          userName: selectedUser.userName,
+          userName: selectedUser.fullName || `User ${selectedUser.userId}`,
           userId: selectedUser.userId,
-          userImage: selectedUser.userImage,
-          userRole: selectedUser.userRole,
+          userImage: selectedUser.userImage || null,
+          userRole: selectedUser.userRole || "student",
           weekly: {},
           allTime: { coins: 0, streak: 0 },
         };
@@ -245,22 +236,33 @@ export default function CommonKriyaAttendance() {
         [selectedUser.userId]: true,
       }));
 
+      // Mark completion in tracker
+      challengeCompletionTracker.current.add(challengeKey);
+
       // Show success modal
       setCompletionModal({
         visible: true,
         challengeName,
         streak: challenge.streak,
         coinsEarned,
-        message: `Kriya attendance marked for ${selectedUser.userName}!`,
+        message: `Kriya attendance marked for ${selectedUser.fullName}!`,
       });
     } catch (err) {
       console.error("Error updating attendance:", err);
+      let errorMessage = "Failed to mark attendance.";
+      if (err.code === "permission-denied") {
+        errorMessage = "Permission denied. Please check Firestore rules.";
+      } else if (err.code === "not-found") {
+        errorMessage = "Required data not found in Firestore.";
+      } else {
+        errorMessage = `Error: ${err.message}`;
+      }
       setCompletionModal({
         visible: true,
         challengeName: "Kriya",
         streak: 0,
         coinsEarned: 0,
-        message: "Failed to mark attendance.",
+        message: errorMessage,
       });
     }
   };
@@ -272,8 +274,8 @@ export default function CommonKriyaAttendance() {
     return (
       <View style={styles.userItem}>
         <View style={styles.userInfo}>
-          <Text style={styles.userName}>{item.userName}</Text>
-          <Text style={styles.userRole}>{item.userRole}</Text>
+          <Text style={styles.userName}>{item.fullName || `User ${item.userId}`}</Text>
+          <Text style={styles.userRole}>{item.userRole || "Student"}</Text>
         </View>
         {isAttended ? (
           <View style={styles.attendedContainer}>
@@ -287,7 +289,7 @@ export default function CommonKriyaAttendance() {
           <TouchableOpacity
             style={styles.attendButton}
             onPress={() => handleAttendance(item)}
-            accessibilityLabel={`Mark Kriya attendance for ${item.userName}`}
+            accessibilityLabel={`Mark Kriya attendance for ${item.fullName || "user"}`}
             accessibilityRole="button"
           >
             <Ionicons name="checkmark-circle-outline" size={24} color="#fff" />
